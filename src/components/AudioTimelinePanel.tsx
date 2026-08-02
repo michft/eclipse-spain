@@ -9,7 +9,7 @@ import {
 } from "../domain/audioTimeline";
 import {
   calculateSolarObscuration,
-  type ContactId,
+  CONTACT_IDS,
 } from "../domain/eclipse";
 import type { GeoPoint } from "../domain/geo";
 import { useAudioTimeline } from "../features/audio/useAudioTimeline";
@@ -21,8 +21,6 @@ interface AudioTimelinePanelProps {
   elevationMeters: number;
   location: GeoPoint;
 }
-
-const anchors: readonly ContactId[] = ["c1", "c2", "maximum", "c3", "c4"];
 
 const formatCountdown = (milliseconds: number): string => {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -199,7 +197,7 @@ const MarkerEditor = ({
         value={marker.label}
       />
       <View style={styles.anchorOptions}>
-        {anchors.map((anchor) => (
+        {CONTACT_IDS.map((anchor) => (
           <ActionButton
             key={anchor}
             onPress={() => onUpdate({ anchor })}

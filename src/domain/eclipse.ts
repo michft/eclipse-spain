@@ -15,7 +15,8 @@ const ASTRONOMICAL_UNIT_KM = 149_597_870.7;
 const SUN_RADIUS_KM = 695_700;
 const MOON_RADIUS_KM = 1_737.4;
 
-export type ContactId = "c1" | "c2" | "maximum" | "c3" | "c4";
+export const CONTACT_IDS = ["c1", "c2", "maximum", "c3", "c4"] as const;
+export type ContactId = (typeof CONTACT_IDS)[number];
 
 export interface EclipseContact {
   id: ContactId;
@@ -121,7 +122,11 @@ export const calculateSolarObscuration = (
   date: Date,
   elevationMeters = 0,
 ): number => {
-  if (!isValidGeoPoint(location) || !Number.isFinite(date.getTime())) {
+  if (
+    !isValidGeoPoint(location) ||
+    !Number.isFinite(date.getTime()) ||
+    !Number.isFinite(elevationMeters)
+  ) {
     return 0;
   }
   const observer = new Observer(
@@ -149,7 +154,7 @@ const makeContact = (
     return null;
   }
 
-  const sun = Equator(Body.Sun, event.time, observer, false, true);
+  const sun = Equator(Body.Sun, event.time, observer, true, true);
   const horizontal = Horizon(
     event.time,
     observer,

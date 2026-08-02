@@ -1,10 +1,22 @@
 export type AudioCueMode = "speech" | "tone";
 
-const playTone = async (durationSeconds = 0.12): Promise<void> => {
+let sharedAudioContext: AudioContext | null = null;
+
+const getAudioContext = (): AudioContext => {
   if (typeof window === "undefined" || !("AudioContext" in window)) {
     throw new Error("Browser audio is unavailable.");
   }
-  const context = new AudioContext();
+  if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+    sharedAudioContext = new window.AudioContext();
+  }
+  return sharedAudioContext;
+};
+
+const playTone = async (durationSeconds = 0.12): Promise<void> => {
+  const context = getAudioContext();
+  if (context.state === "suspended") {
+    await context.resume();
+  }
   const oscillator = context.createOscillator();
   const gain = context.createGain();
   oscillator.frequency.value = 880;
@@ -21,7 +33,6 @@ const playTone = async (durationSeconds = 0.12): Promise<void> => {
   await new Promise<void>((resolve) => {
     oscillator.addEventListener("ended", () => resolve(), { once: true });
   });
-  await context.close();
 };
 
 export const playAudioCue = async (
@@ -43,4 +54,10 @@ export const playAudioCue = async (
   return "tone";
 };
 
-export const primeAudio = (): Promise<void> => playTone(0.06);
+export const primeAudio = async (): Promise<void> => {
+  const context = getAudioContext();
+  if (context.state === "suspended") {
+    await context.resume();
+  }
+  await playTone(0.06);
+};

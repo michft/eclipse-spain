@@ -2,13 +2,12 @@ import {
   DEFAULT_AUDIO_MARKERS,
   type AudioMarker,
 } from "../domain/audioTimeline";
-import type { ContactId } from "../domain/eclipse";
+import { CONTACT_IDS, type ContactId } from "../domain/eclipse";
 
 const STORAGE_KEY = "eclipse-observer.audio-markers";
-const anchors: readonly ContactId[] = ["c1", "c2", "maximum", "c3", "c4"];
 
 const isContactId = (value: unknown): value is ContactId =>
-  typeof value === "string" && anchors.some((anchor) => anchor === value);
+  typeof value === "string" && CONTACT_IDS.some((anchor) => anchor === value);
 
 const isAudioMarker = (value: unknown): value is AudioMarker =>
   typeof value === "object" &&
