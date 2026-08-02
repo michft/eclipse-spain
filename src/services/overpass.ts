@@ -1,9 +1,11 @@
 import { distanceKm, type GeoPoint } from "../domain/geo";
 import type { FetchFunction, ServiceResult } from "./result";
+import { createRequestTimeout } from "./requestTimeout";
 
 export const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 export const OPENSTREETMAP_SOURCE_URL = "https://www.openstreetmap.org/copyright";
 export const TRANSPORT_RADIUS_KM = 25;
+const OVERPASS_TIMEOUT_MILLISECONDS = 30_000;
 
 export type TransportMode = "rail" | "bus" | "airport" | "ferry" | "parking";
 
@@ -49,11 +51,72 @@ const parseElements = (value: unknown): OverpassElement[] | null => {
       (candidate.type !== "node" &&
         candidate.type !== "way" &&
         candidate.type !== "relation") ||
-      typeof candidate.id !== "number"
+      typeof candidate.id !== "number" ||
+      !Number.isFinite(candidate.id)
     ) {
       return [];
     }
-    return [candidate as OverpassElement];
+    let tags: Record<string, string> | undefined;
+    if ("tags" in candidate) {
+      if (
+        typeof candidate.tags !== "object" ||
+        candidate.tags === null ||
+        Array.isArray(candidate.tags) ||
+        !Object.values(candidate.tags).every((tag) => typeof tag === "string")
+      ) {
+        return [];
+      }
+      tags = Object.fromEntries(
+        Object.entries(candidate.tags).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      );
+    }
+    const withTags = tags ? { tags } : {};
+
+    if (candidate.type === "node") {
+      if (
+        !("lat" in candidate) ||
+        !("lon" in candidate) ||
+        typeof candidate.lat !== "number" ||
+        typeof candidate.lon !== "number" ||
+        !Number.isFinite(candidate.lat) ||
+        !Number.isFinite(candidate.lon)
+      ) {
+        return [];
+      }
+      return [
+        {
+          type: "node",
+          id: candidate.id,
+          lat: candidate.lat,
+          lon: candidate.lon,
+          ...withTags,
+        },
+      ];
+    }
+
+    if (
+      !("center" in candidate) ||
+      typeof candidate.center !== "object" ||
+      candidate.center === null ||
+      !("lat" in candidate.center) ||
+      !("lon" in candidate.center) ||
+      typeof candidate.center.lat !== "number" ||
+      typeof candidate.center.lon !== "number" ||
+      !Number.isFinite(candidate.center.lat) ||
+      !Number.isFinite(candidate.center.lon)
+    ) {
+      return [];
+    }
+    return [
+      {
+        type: candidate.type,
+        id: candidate.id,
+        center: { lat: candidate.center.lat, lon: candidate.center.lon },
+        ...withTags,
+      },
+    ];
   });
 };
 
@@ -117,11 +180,13 @@ export const fetchTransportProximity = async (
   fetchFunction: FetchFunction = fetch,
   now: Date = new Date(),
 ): Promise<ServiceResult<TransportProximity>> => {
+  const timeout = createRequestTimeout(OVERPASS_TIMEOUT_MILLISECONDS);
   try {
     const response = await fetchFunction(OVERPASS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `data=${encodeURIComponent(makeQuery(location))}`,
+      signal: timeout.signal,
     });
     if (!response.ok) {
       return {
@@ -166,5 +231,7 @@ export const fetchTransportProximity = async (
       status: "error",
       reason: error instanceof Error ? error.message : "Transport request failed.",
     };
+  } finally {
+    timeout.clear();
   }
 };

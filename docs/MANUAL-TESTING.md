@@ -29,7 +29,7 @@ browser and a desktop browser.
 - Test spoken audio and test tone-only mode.
 - Add a marker; edit label, anchor, `45`, `1:30`, and `-0:30` offsets.
 - Reject malformed offsets such as `1:60`.
-- Toggle enabled and spoken flags; remove every marker including defaults.
+- Toggle enabled and spoken flags; remove every marker, including defaults.
 - Reload and confirm marker persistence.
 - Restore defaults.
 - Arm and disarm from a user gesture.

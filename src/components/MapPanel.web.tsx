@@ -34,6 +34,17 @@ const FitEventBounds = ({ bounds }: { bounds: MapBounds }) => {
   return null;
 };
 
+const KeepLocationVisible = ({ location }: { location: GeoPoint }) => {
+  const map = useMap();
+  useEffect(() => {
+    const selectedPoint = L.latLng(location.latitude, location.longitude);
+    if (!map.getBounds().contains(selectedPoint)) {
+      map.panTo(selectedPoint);
+    }
+  }, [location, map]);
+  return null;
+};
+
 const MapClick = ({
   onLocationChange,
 }: Pick<MapPanelProps, "onLocationChange">) => {
@@ -62,6 +73,7 @@ export const MapPanel = ({
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
     <FitEventBounds bounds={bounds} />
+    <KeepLocationVisible location={location} />
     <Polyline
       pathOptions={{ color: "#ffc94d", opacity: 0.9, weight: 3 }}
       positions={centerLine.map((point) => [point.latitude, point.longitude])}
