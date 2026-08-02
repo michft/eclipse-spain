@@ -1,9 +1,40 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchTransportProximity } from "./overpass";
+import {
+  fetchTransportProximity,
+  makeTransportRequest,
+  TRANSPORT_API_PATH,
+} from "./overpass";
 import type { FetchFunction } from "./result";
 
 describe("Overpass transport adapter", () => {
+  it("uses the same-origin transport API in deployed browsers", () => {
+    const request = makeTransportRequest(
+      { latitude: 43.3717, longitude: -6.1883 },
+      new AbortController().signal,
+      "eclipse-spain-ten.vercel.app",
+    );
+
+    expect(request.input).toBe(
+      `${TRANSPORT_API_PATH}?latitude=43.3717&longitude=-6.1883`,
+    );
+    expect(request.init.method).toBeUndefined();
+  });
+
+  it("uses the same-origin transport API for signalled Vercel development", () => {
+    const request = makeTransportRequest(
+      { latitude: 43.3717, longitude: -6.1883 },
+      new AbortController().signal,
+      "localhost",
+      true,
+    );
+
+    expect(request.input).toBe(
+      `${TRANSPORT_API_PATH}?latitude=43.3717&longitude=-6.1883`,
+    );
+    expect(request.init.method).toBeUndefined();
+  });
+
   it("keeps modes separate and chooses the nearest item", async () => {
     const fetchFunction = vi.fn<FetchFunction>(async () =>
       new Response(

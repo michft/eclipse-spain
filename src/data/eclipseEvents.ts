@@ -58,13 +58,17 @@ export const ECLIPSE_EVENTS: readonly EclipseEventDefinition[] = [
         label: "NASA event page",
         url: "https://eclipse.gsfc.nasa.gov/SEsearch/SEsearchmap.php?Ecl=20260812",
       },
+      {
+        label: "NASA Besselian elements",
+        url: "https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2026Aug12Tbeselm.html",
+      },
       ASTRONOMY_ENGINE_SOURCE,
     ],
   },
   {
     id: "middle-east-2027",
     name: "2 August 2027 total solar eclipse",
-    region: "North Africa and Middle East",
+    region: "North Africa and the Middle East",
     eventDateUtc: "2027-08-02",
     searchStartUtc: "2027-08-02T00:00:00.000Z",
     mapCenter: { latitude: 25.5, longitude: 32.5 },
@@ -99,6 +103,10 @@ export const ECLIPSE_EVENTS: readonly EclipseEventDefinition[] = [
       {
         label: "NASA event page",
         url: "https://eclipse.gsfc.nasa.gov/SEsearch/SEsearchmap.php?Ecl=20270802",
+      },
+      {
+        label: "NASA Besselian elements",
+        url: "https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2027Aug02Tbeselm.html",
       },
       ASTRONOMY_ENGINE_SOURCE,
     ],
@@ -140,6 +148,10 @@ export const ECLIPSE_EVENTS: readonly EclipseEventDefinition[] = [
       {
         label: "NASA event page",
         url: "https://eclipse.gsfc.nasa.gov/SEsearch/SEsearchmap.php?Ecl=20280722",
+      },
+      {
+        label: "NASA Besselian elements",
+        url: "https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2028Jul22Tbeselm.html",
       },
       ASTRONOMY_ENGINE_SOURCE,
     ],

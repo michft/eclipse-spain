@@ -4,8 +4,11 @@ Mobile-first Expo TypeScript web app for choosing an eclipse observation point,
 checking the terrain horizon and nearby infrastructure, and running an editable
 spoken countdown.
 
-The repository is ready to build as a static single-page app for Vercel. It has
-not been deployed and intentionally has no public product version yet.
+The browser app exports as a static single-page app for Vercel, with one Vercel
+Function for same-origin transport queries. The current
+[partial deployment](https://eclipse-spain-ten.vercel.app) predates the
+`mvp-plan-complete` work and must be redeployed and rechecked. It intentionally
+has no public product version yet.
 
 ## Supported eclipses
 
@@ -22,13 +25,16 @@ NASA sources, and centre-line points live in `src/data/eclipseEvents.ts`.
 - C1, C2, maximum, C3, and C4 in UTC and the device's local time.
 - Local eclipse type, magnitude, obscuration, totality duration, Sun altitude,
   Sun azimuth, and distance to a NASA-derived centre line.
-- Observer elevation and a 50 km terrain-horizon profile in the direction of the
-  Sun at maximum.
+- Observer elevation and a selectable C1/C2/maximum/C3/C4 terrain-horizon
+  profile, with distance, elevation, and apparent-angle samples out to 50 km.
 - Cloud forecast with explicit out-of-range and failure states.
-- Nearest rail, bus, airport, ferry, and parking objects from OpenStreetMap.
+- Nearest rail, bus, airport, ferry, and parking objects from OpenStreetMap,
+  queried through a same-origin Vercel Function in deployments.
 - Editable, removable, persistent audio markers anchored to eclipse contacts.
 - Marker offsets in seconds or signed `m:ss`, with speech or tone flags.
 - Live display of time to the next marker or current Sun obscuration.
+- Separate speech and tone tests, with hidden-tab, unavailable-speech, and
+  untrusted-device-clock warnings.
 - Canonical query-string sharing and a client-generated QR code.
 - Direct source links for independent comparison.
 
@@ -42,6 +48,12 @@ pnpm web
 ```
 
 The app is web-only. There are no iOS or Android build targets.
+
+`pnpm web` calls Overpass directly for local development. Vercel deployments use
+`/api/transport` to avoid the CORS failure observed on the partial deployment.
+To exercise the same-origin Function locally, use
+`EXPO_PUBLIC_TRANSPORT_PROXY=1 pnpm dlx vercel dev`; the runtime signal makes the
+localhost browser call `/api/transport` while Vercel serves the Function.
 
 ## Validation
 
@@ -71,12 +83,13 @@ See [manual browser checks](docs/MANUAL-TESTING.md) before a public deployment.
 - frozen `pnpm` install;
 - `pnpm build:web` build command;
 - `dist` output directory;
+- an `/api/transport` function that creates the fixed Overpass query;
 - history fallback to the SPA root.
 
 Connect the repository in Vercel, or deploy from a machine with Vercel access.
-Do not add API secrets: the MVP calls public browser APIs directly. A public
-deployment should be checked for provider CORS, rate limits, mobile audio, map
-tile usage, and the full checklist before being treated as operational.
+No API secrets are required. A public deployment must be checked for provider
+errors, rate limits, mobile audio, map tile usage, and the full checklist before
+being treated as operational.
 
 ## Important field limitations
 
@@ -99,6 +112,7 @@ Implementation boundaries are in [architecture](docs/ARCHITECTURE.md).
 
 ```text
 App.tsx                         mobile-first workspace
+api/transport.ts                fixed-query Vercel transport proxy
 src/components/                presentation and charts
 src/data/                      supported eclipse definitions
 src/domain/                    pure eclipse, geodesy, horizon, audio logic

@@ -37,9 +37,11 @@ less precise between widely spaced path-table points or outside the stored regio
 - Underlying terrain: Copernicus DEM, with acknowledgement and citation guidance
   on the Open-Meteo page.
 
-The app requests observer elevation plus 15 samples along the Sun azimuth at
-maximum, from 250 m to 50 km. It converts terrain height relative to the observer
-into an apparent angle and includes geometric Earth-curvature drop.
+The app requests observer elevation plus 15 samples along the Sun azimuth at the
+user-selected available contact phase, from 250 m to 50 km. It converts terrain
+height relative to the observer into an apparent angle and includes geometric
+Earth-curvature drop. The display lists each sample's distance, terrain elevation,
+and apparent angle.
 
 The profile does not model atmospheric refraction, local survey detail, trees,
 buildings, temporary structures, or haze. It intentionally has no fixed 2°
@@ -65,9 +67,12 @@ of whether the Sun will be visible. Recheck several models close to the event.
 - Standard map tiles: `tile.openstreetmap.org`
 
 The app queries a 25 km radius and shows the closest separately classified rail,
-bus, airport, ferry, and parking object. Distance is straight-line. OpenStreetMap
-can be incomplete or stale; the query does not verify timetables, legal access,
-capacity, road conditions, or operation on eclipse day.
+bus, airport, ferry, and parking object. Deployed browsers call the same-origin
+`/api/transport` Vercel Function; it validates coordinates, creates this fixed
+query, and forwards it to Overpass to avoid direct-browser CORS failure. Distance
+is straight-line. OpenStreetMap can be incomplete or stale; the query does not
+verify timetables, legal access, capacity, road conditions, or operation on
+eclipse day.
 
 The MVP uses the public standard tile and Overpass services. Before high-traffic
 public promotion, review their current usage policies and move to an appropriate
@@ -80,4 +85,6 @@ stored in browser local storage and are not included in shared URLs.
 
 Speech uses the browser's speech synthesis; tone cues use Web Audio. Browser and
 device power-management policies can suspend both timers and audio. The app skips
-stale cues after a suspension instead of replaying them late.
+stale cues after a suspension instead of replaying them late. It warns when speech
+is unavailable, compares the device clock with the same-origin HTTP `Date` header,
+and disarms if wall time jumps relative to its monotonic scheduling baseline.

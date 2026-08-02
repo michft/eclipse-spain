@@ -7,12 +7,16 @@ App and components
   analysis controller             audio controller
     eclipse domain                  audio timeline domain
     Open-Meteo adapters             audio/storage/visibility adapters
-    Overpass adapter
+    transport adapter
   event definitions
+Vercel transport function
+  fixed Overpass query
 ```
 
-The app is a static browser client. It has no server, account system, database,
-or secret API keys.
+The UI is a static browser client. A single same-origin Vercel Function validates
+coordinates, creates the fixed transport query, and forwards it to Overpass. It
+was added after the partial production deployment proved direct browser requests
+could fail CORS. There is no account system, database, or secret API key.
 
 ## Boundaries
 
@@ -39,7 +43,7 @@ page state. Their core behavior is unit tested.
 `src/services/` contains narrow adapters for:
 
 - Open-Meteo elevation and cloud JSON;
-- Overpass/OpenStreetMap transport objects;
+- same-origin transport results and Overpass/OpenStreetMap transport objects;
 - browser geolocation, clipboard, storage, QR, page visibility, speech, and tone.
 
 Network adapters accept an injected fetch function. They parse `unknown` input
@@ -50,7 +54,9 @@ and return typed `success`, `unavailable`, or `error` results.
 `useLocationAnalysis` runs eclipse calculation immediately, then elevation,
 cloud, and transport concurrently. A later request invalidates an older one.
 Each provider keeps its own UI state, so one failure does not discard other
-results. A successful observer elevation triggers one refined eclipse calculation.
+results. Changing only the selected horizon phase reloads only elevation; it does
+not repeat cloud or transport requests. A successful observer elevation triggers
+one refined eclipse calculation.
 
 `useAudioTimeline` persists marker edits, resolves enabled markers to UTC, checks
 due markers against wall time, and tracks cues already fired. Cues more than three
@@ -71,5 +77,6 @@ happens locally in the browser.
 ## Deployment
 
 Expo Metro exports a single-page application into `dist/`. Vercel serves those
-static files and rewrites unknown paths to the SPA root. Deployment and provider
-monitoring are operational actions outside the source implementation.
+static files, deploys `api/transport.ts`, and rewrites unknown non-function paths
+to the SPA root. Deployment and provider monitoring are operational actions
+outside the source implementation.
