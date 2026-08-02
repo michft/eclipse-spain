@@ -13,10 +13,6 @@ import {
   type CloudForecast,
   type ElevationProfileResult,
 } from "../../services/openMeteo";
-import {
-  fetchTransportProximity,
-  type TransportProximity,
-} from "../../services/overpass";
 import type { ServiceResult } from "../../services/result";
 
 export type RemoteData<T> =
@@ -28,7 +24,6 @@ export interface LocationAnalysisState {
   eclipse: EclipseCalculationResult;
   elevation: RemoteData<ElevationProfileResult>;
   cloud: RemoteData<CloudForecast>;
-  transport: RemoteData<TransportProximity>;
 }
 
 const idleState = (
@@ -38,7 +33,6 @@ const idleState = (
   eclipse: calculateLocalEclipse(event, location),
   elevation: { state: "idle" },
   cloud: { state: "idle" },
-  transport: { state: "idle" },
 });
 
 export const useLocationAnalysis = (
@@ -108,7 +102,6 @@ export const useLocationAnalysis = (
         eclipse: initialEclipse,
         elevation: { state: "loading" },
         cloud: { state: "loading" },
-        transport: { state: "loading" },
       });
 
       if (initialEclipse.status !== "success") {
@@ -116,7 +109,6 @@ export const useLocationAnalysis = (
           eclipse: initialEclipse,
           elevation: { state: "idle" },
           cloud: { state: "idle" },
-          transport: { state: "idle" },
         });
         return;
       }
@@ -127,7 +119,6 @@ export const useLocationAnalysis = (
           eclipse: initialEclipse,
           elevation: { state: "idle" },
           cloud: { state: "idle" },
-          transport: { state: "idle" },
         });
         return;
       }
@@ -150,19 +141,8 @@ export const useLocationAnalysis = (
           cloud: { state: "result", result: cloud },
         }));
       });
-      const transportRequest = fetchTransportProximity(location).then((transport) => {
-        if (requestNumber.current !== currentRequest) {
-          return;
-        }
-        setAnalysis((current) => ({
-          ...current,
-          transport: { state: "result", result: transport },
-        }));
-      });
-
       await elevationRequest;
       await cloudRequest;
-      await transportRequest;
     },
     [requestElevation],
   );

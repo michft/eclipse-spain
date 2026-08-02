@@ -76,6 +76,10 @@ describe("Overpass transport adapter", () => {
       return;
     }
     expect(result.value.nearest.rail?.name).toBe("Near halt");
+    expect(result.value.nearest.rail?.location).toEqual({
+      latitude: 41.81,
+      longitude: -3.2,
+    });
     expect(result.value.nearest.parking?.name).toBe("Observer parking");
     expect(result.value.nearest.bus).toBeNull();
     expect(result.value.nearest.rail?.osmUrl).toContain("/node/2");

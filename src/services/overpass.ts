@@ -15,6 +15,7 @@ export interface NearbyTransport {
   mode: TransportMode;
   name: string;
   distanceKm: number;
+  location: GeoPoint;
   osmUrl: string;
 }
 
@@ -245,6 +246,7 @@ export const fetchTransportProximity = async (
         mode,
         name: tags.name ?? `Unnamed ${mode} location`,
         distanceKm: distanceKm(location, itemLocation),
+        location: itemLocation,
         osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
       };
       if (!nearest[mode] || candidate.distanceKm < nearest[mode].distanceKm) {
