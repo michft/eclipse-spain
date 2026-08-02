@@ -7,6 +7,7 @@ import {
 } from "../domain/horizon";
 import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
+import { fetchWithRateLimitBackoff } from "./rateLimitBackoff";
 
 export const OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation";
 export const OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
@@ -102,9 +103,11 @@ export const fetchElevationProfile = async (
 
   const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_ELEVATION_URL}?${query}`, {
-      signal: timeout.signal,
-    });
+    const response = await fetchWithRateLimitBackoff(
+      fetchFunction,
+      `${OPEN_METEO_ELEVATION_URL}?${query}`,
+      { signal: timeout.signal },
+    );
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }
@@ -256,9 +259,11 @@ export const fetchCloudForecast = async (
 
   const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_FORECAST_URL}?${query}`, {
-      signal: timeout.signal,
-    });
+    const response = await fetchWithRateLimitBackoff(
+      fetchFunction,
+      `${OPEN_METEO_FORECAST_URL}?${query}`,
+      { signal: timeout.signal },
+    );
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }

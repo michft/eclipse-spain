@@ -51,6 +51,32 @@ describe("device clock check", () => {
     });
   });
 
+  it("measures clock skew from the successful retry, excluding backoff", async () => {
+    vi.useFakeTimers();
+    try {
+      const serverTime = Date.parse("2026-08-02T14:00:01.000Z");
+      vi.setSystemTime(serverTime - 1_000);
+      const fetchFunction = vi
+        .fn<FetchFunction>()
+        .mockResolvedValueOnce(new Response(null, { status: 429 }))
+        .mockResolvedValueOnce(
+          new Response(null, {
+            headers: { Date: new Date(serverTime).toUTCString() },
+          }),
+        );
+
+      const result = checkDeviceClock(fetchFunction, Date.now, "/");
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(result).resolves.toEqual({
+        status: "trusted",
+        differenceMilliseconds: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("bounds a stalled network-time request", async () => {
     vi.useFakeTimers();
     try {

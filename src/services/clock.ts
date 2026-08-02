@@ -1,5 +1,6 @@
 import type { FetchFunction } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
+import { fetchWithRateLimitBackoff } from "./rateLimitBackoff";
 
 const MAX_CLOCK_SKEW_MILLISECONDS = 5_000;
 const DATE_HEADER_PRECISION_MILLISECONDS = 1_000;
@@ -16,14 +17,21 @@ export const checkDeviceClock = async (
   now: () => number = Date.now,
   url: string = typeof window === "undefined" ? "/" : window.location.origin,
 ): Promise<ClockTrustResult> => {
-  const startedUtcMilliseconds = now();
+  let startedUtcMilliseconds = 0;
   const timeout = createRequestTimeout(CLOCK_CHECK_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(url, {
-      method: "HEAD",
-      cache: "no-store",
-      signal: timeout.signal,
-    });
+    const response = await fetchWithRateLimitBackoff(
+      (input, init) => {
+        startedUtcMilliseconds = now();
+        return fetchFunction(input, init);
+      },
+      url,
+      {
+        method: "HEAD",
+        cache: "no-store",
+        signal: timeout.signal,
+      },
+    );
     const finishedUtcMilliseconds = now();
     const serverDate = response.headers.get("Date");
     const serverUtcMilliseconds =

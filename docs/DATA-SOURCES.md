@@ -99,6 +99,12 @@ candidates are not verified observing sites, and the query does not
 verify timetables, legal access, capacity, road conditions, or operation on
 eclipse day.
 
+Server limits stay fixed. Client adapters always back off before retrying HTTP
+429 responses: waits increase from one to two to four seconds, halving the
+effective retry rate each time. Retries stop after three retries and remain
+inside each adapter's existing total timeout; a final 429 is then shown through
+the normal section error state.
+
 The MVP uses the public standard tile and Overpass services. Before high-traffic
 public promotion, review their current usage policies and move to an appropriate
 hosted or derived dataset if expected load requires it.

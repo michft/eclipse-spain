@@ -1,6 +1,7 @@
 import { distanceKm, type GeoPoint } from "../domain/geo";
 import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
+import { fetchWithRateLimitBackoff } from "./rateLimitBackoff";
 
 export const OVERPASS_PROVIDER_URL = "https://overpass-api.de/api/interpreter";
 export const OVERPASS_FALLBACK_PROVIDER_URL =
@@ -227,7 +228,11 @@ export const fetchTransportProximity = async (
   const timeout = createRequestTimeout(OVERPASS_TIMEOUT_MILLISECONDS);
   try {
     const request = makeTransportRequest(location, timeout.signal);
-    const response = await fetchFunction(request.input, request.init);
+    const response = await fetchWithRateLimitBackoff(
+      fetchFunction,
+      request.input,
+      request.init,
+    );
     if (!response.ok) {
       return {
         status: "error",
