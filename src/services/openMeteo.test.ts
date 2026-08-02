@@ -12,7 +12,7 @@ const jsonResponse = (value: unknown): Response =>
 describe("Open-Meteo adapters", () => {
   it("builds an elevation and horizon profile", async () => {
     const fetchFunction = vi.fn<FetchFunction>(async () =>
-      jsonResponse({ elevation: [100, ...Array<number>(15).fill(120)] }),
+      jsonResponse({ elevation: [100, ...Array<number>(91).fill(120)] }),
     );
     const result = await fetchElevationProfile(
       { latitude: 41.8, longitude: -3.2 },
@@ -26,8 +26,12 @@ describe("Open-Meteo adapters", () => {
       return;
     }
     expect(result.value.observerElevationMeters).toBe(100);
-    expect(result.value.horizon.samples).toHaveLength(15);
+    expect(result.value.horizon.samples).toHaveLength(7);
+    expect(result.value.skyline.samples).toHaveLength(13);
     expect(String(fetchFunction.mock.calls[0]?.[0])).toContain("latitude=");
+    const requestUrl = new URL(String(fetchFunction.mock.calls[0]?.[0]));
+    expect(requestUrl.searchParams.get("latitude")?.split(",")).toHaveLength(92);
+    expect(requestUrl.searchParams.get("longitude")?.split(",")).toHaveLength(92);
     expect(fetchFunction.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 

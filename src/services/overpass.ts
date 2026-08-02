@@ -3,6 +3,8 @@ import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
 
 export const OVERPASS_PROVIDER_URL = "https://overpass-api.de/api/interpreter";
+export const OVERPASS_FALLBACK_PROVIDER_URL =
+  "https://overpass.private.coffee/api/interpreter";
 export const OVERPASS_URL = OVERPASS_PROVIDER_URL;
 export const TRANSPORT_API_PATH = "/api/transport";
 export const OPENSTREETMAP_SOURCE_URL = "https://www.openstreetmap.org/copyright";
@@ -15,6 +17,7 @@ export interface NearbyTransport {
   mode: TransportMode;
   name: string;
   distanceKm: number;
+  location: GeoPoint;
   osmUrl: string;
 }
 
@@ -245,6 +248,7 @@ export const fetchTransportProximity = async (
         mode,
         name: tags.name ?? `Unnamed ${mode} location`,
         distanceKm: distanceKm(location, itemLocation),
+        location: itemLocation,
         osmUrl: `https://www.openstreetmap.org/${element.type}/${element.id}`,
       };
       if (!nearest[mode] || candidate.distanceKm < nearest[mode].distanceKm) {

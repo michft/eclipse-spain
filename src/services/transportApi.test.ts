@@ -34,6 +34,22 @@ describe("transport API", () => {
     expect(fetchFunction.mock.calls[0]?.[1]?.body).toContain("data=");
   });
 
+  it("retries an immediate provider failure on the fallback instance", async () => {
+    const fetchFunction = vi
+      .fn<FetchFunction>()
+      .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+      .mockResolvedValueOnce(Response.json({ elements: [] }));
+
+    const response = await handleTransportRequest(request(), fetchFunction);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ elements: [] });
+    expect(fetchFunction).toHaveBeenCalledTimes(2);
+    expect(String(fetchFunction.mock.calls[1]?.[0])).toContain(
+      "overpass.private.coffee",
+    );
+  });
+
   it("maps provider rejection to a stable gateway error", async () => {
     const fetchFunction = vi.fn<FetchFunction>(async () => {
       throw new Error("network failed");

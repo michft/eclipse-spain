@@ -3,16 +3,20 @@
 Run these checks against a production export or Vercel preview on both a phone
 browser and a desktop browser.
 
-The existing `eclipse-spain-ten.vercel.app` deployment is a pre-completion
-baseline and has a confirmed direct-Overpass CORS failure. Do not accept it as
-the result of `mvp-plan-complete`. Redeploy that bookmark, then run every check
-below against the new deployment.
+The existing `eclipse-spain-ten.vercel.app` deployment is the baseline without
+the location finder and live observer-sky horizon. Deploy the `live-horizon`
+branch, then run every check below against that exact deployment.
 
 ## Event and location
 
 - Select each of the 2026, 2027, and 2028 events.
 - Confirm the map moves to the event region and shows the gold centre line.
-- Tap a point on the map and confirm coordinates, QR, and all results update.
+- Tap the map to choose a rough search point and confirm coordinates, QR, and
+  current-point results update.
+- Run **Find candidates**. Confirm ranked transport anchors appear in the list
+  and on the map, with separate score components and an access disclaimer.
+- Select a candidate and confirm eclipse, horizon, cloud, audio, and share state
+  switch to its coordinates. Confirm there is no standalone transport card.
 - Enter valid negative/positive coordinates and reject out-of-range values.
 - Allow browser geolocation once; deny it once and confirm a readable error.
 - Open a copied share URL in a private tab and confirm event and point restore.
@@ -23,13 +27,14 @@ below against the new deployment.
 - Select a partial-eclipse point and confirm C2/C3 are omitted without breaking
   the audio editor.
 - Compare contact times and centre line with the linked NASA source.
-- Select every available C1/C2/maximum/C3/C4 horizon phase and confirm the graph,
-  Sun reference, azimuth text, and distance/elevation/apparent-angle rows update.
+- Scrub the observer-sky timeline from C1 to C4; jump to every available contact;
+  play at 60×, 300×, and 600×; confirm Sun, Moon, UTC, obscuration, azimuth,
+  altitude, and terrain clearance update over the terrain silhouette.
 - Confirm no 2° pass/fail or C3+60 warning appears.
 - Block one provider in browser tools and confirm other result cards survive.
 - For a far-future event, confirm cloud says the forecast is not available yet.
-- Confirm transport succeeds without a browser CORS error, always shows the 25 km
-  query radius and retrieval time, then open every object and source link.
+- Confirm candidate finding succeeds without a browser CORS error and each OSM
+  anchor link opens.
 
 ## Audio
 

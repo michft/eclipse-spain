@@ -3,6 +3,7 @@ import {
   makeHorizonProfile,
   type ElevationSample,
   type HorizonProfile,
+  type TerrainSkyline,
 } from "../domain/horizon";
 import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
@@ -13,8 +14,10 @@ export const OPEN_METEO_ELEVATION_SOURCE_URL =
   "https://open-meteo.com/en/docs/elevation-api";
 export const OPEN_METEO_FORECAST_SOURCE_URL = "https://open-meteo.com/en/docs";
 
-const HORIZON_DISTANCES_KM = [
-  0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 12, 16, 20, 30, 40, 50,
+const HORIZON_DISTANCES_KM = [0.25, 0.5, 1, 2, 5, 10, 20] as const;
+const HORIZON_AZIMUTH_OFFSETS_DEGREES = [
+  -40, -33.333, -26.667, -20, -13.333, -6.667, 0, 6.667, 13.333, 20,
+  26.667, 33.333, 40,
 ] as const;
 const FORECAST_RANGE_DAYS = 16;
 const OPEN_METEO_TIMEOUT_MILLISECONDS = 10_000;
@@ -26,6 +29,7 @@ interface ElevationResponse {
 export interface ElevationProfileResult {
   observerElevationMeters: number;
   horizon: HorizonProfile;
+  skyline: TerrainSkyline;
   sourceUrl: string;
   retrievedUtc: string;
 }
@@ -78,10 +82,17 @@ export const fetchElevationProfile = async (
   fetchFunction: FetchFunction = fetch,
   now: Date = new Date(),
 ): Promise<ServiceResult<ElevationProfileResult>> => {
-  const profileLocations = HORIZON_DISTANCES_KM.map((distanceKm) =>
-    destinationPoint(location, azimuthDegrees, distanceKm),
-  );
-  const requestLocations = [location, ...profileLocations];
+  const skylineRays = HORIZON_AZIMUTH_OFFSETS_DEGREES.map((offsetDegrees) => ({
+    azimuthDegrees: azimuthDegrees + offsetDegrees,
+    offsetDegrees,
+    locations: HORIZON_DISTANCES_KM.map((distanceKm) =>
+      destinationPoint(location, azimuthDegrees + offsetDegrees, distanceKm),
+    ),
+  }));
+  const requestLocations = [
+    location,
+    ...skylineRays.flatMap((ray) => ray.locations),
+  ];
   const query = new URLSearchParams({
     latitude: requestLocations.map((point) => point.latitude.toFixed(6)).join(","),
     longitude: requestLocations
@@ -106,25 +117,48 @@ export const fetchElevationProfile = async (
     if (observerElevationMeters === undefined) {
       return { status: "error", reason: "Observer elevation was missing." };
     }
-    const samples: ElevationSample[] = profileLocations.flatMap(
-      (profileLocation, index) => {
-        const elevationMeters = parsed.elevation[index + 1];
-        const distanceKm = HORIZON_DISTANCES_KM[index];
-        return elevationMeters === undefined || distanceKm === undefined
-          ? []
-          : [{ location: profileLocation, distanceKm, elevationMeters }];
-      },
+    const profiles = skylineRays.map((ray, rayIndex) => {
+      const samples: ElevationSample[] = ray.locations.flatMap(
+        (profileLocation, distanceIndex) => {
+          const responseIndex =
+            1 + rayIndex * HORIZON_DISTANCES_KM.length + distanceIndex;
+          const elevationMeters = parsed.elevation[responseIndex];
+          const distanceKm = HORIZON_DISTANCES_KM[distanceIndex];
+          return elevationMeters === undefined || distanceKm === undefined
+            ? []
+            : [{ location: profileLocation, distanceKm, elevationMeters }];
+        },
+      );
+      return {
+        offsetDegrees: ray.offsetDegrees,
+        profile: makeHorizonProfile(
+          observerElevationMeters,
+          ray.azimuthDegrees,
+          samples,
+        ),
+      };
+    });
+    const centerProfile = profiles.find(
+      (profile) => profile.offsetDegrees === 0,
     );
+    if (!centerProfile) {
+      return { status: "error", reason: "Terrain skyline was incomplete." };
+    }
 
     return {
       status: "success",
       value: {
         observerElevationMeters,
-        horizon: makeHorizonProfile(
-          observerElevationMeters,
-          azimuthDegrees,
-          samples,
-        ),
+        horizon: centerProfile.profile,
+        skyline: {
+          centerAzimuthDegrees: azimuthDegrees,
+          fieldOfViewDegrees: 80,
+          samples: profiles.map(({ offsetDegrees, profile }) => ({
+            azimuthDegrees: profile.azimuthDegrees,
+            azimuthOffsetDegrees: offsetDegrees,
+            terrainAngleDegrees: profile.highestTerrainAngleDegrees,
+          })),
+        },
         sourceUrl: OPEN_METEO_ELEVATION_SOURCE_URL,
         retrievedUtc: now.toISOString(),
       },

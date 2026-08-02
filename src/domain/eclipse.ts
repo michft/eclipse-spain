@@ -36,6 +36,19 @@ export interface LocalEclipseCircumstances {
   centerLineDistanceKm: number | null;
 }
 
+export interface SkyBodyPosition {
+  altitudeDegrees: number;
+  angularRadiusDegrees: number;
+  azimuthDegrees: number;
+}
+
+export interface ObserverSkyState {
+  moon: SkyBodyPosition;
+  obscuration: number;
+  sun: SkyBodyPosition;
+  utc: string;
+}
+
 export type EclipseCalculationResult =
   | { status: "success"; value: LocalEclipseCircumstances }
   | { status: "unavailable"; reason: string }
@@ -142,6 +155,58 @@ export const calculateSolarObscuration = (
     MOON_RADIUS_KM / (moon.dist * ASTRONOMICAL_UNIT_KM),
   );
   return circleOverlapFraction(sunRadius, moonRadius, separation);
+};
+
+export const calculateObserverSky = (
+  location: GeoPoint,
+  date: Date,
+  elevationMeters = 0,
+): ObserverSkyState | null => {
+  if (
+    !isValidGeoPoint(location) ||
+    !Number.isFinite(date.getTime()) ||
+    !Number.isFinite(elevationMeters)
+  ) {
+    return null;
+  }
+  const observer = new Observer(
+    location.latitude,
+    location.longitude,
+    elevationMeters,
+  );
+  const sunEquator = Equator(Body.Sun, date, observer, true, true);
+  const moonEquator = Equator(Body.Moon, date, observer, true, true);
+  const sunHorizon = Horizon(
+    date,
+    observer,
+    sunEquator.ra,
+    sunEquator.dec,
+    "normal",
+  );
+  const moonHorizon = Horizon(
+    date,
+    observer,
+    moonEquator.ra,
+    moonEquator.dec,
+    "normal",
+  );
+  const angularRadiusDegrees = (radiusKm: number, distanceAu: number): number =>
+    (Math.asin(radiusKm / (distanceAu * ASTRONOMICAL_UNIT_KM)) * 180) /
+    Math.PI;
+  return {
+    utc: date.toISOString(),
+    obscuration: calculateSolarObscuration(location, date, elevationMeters),
+    sun: {
+      altitudeDegrees: sunHorizon.altitude,
+      azimuthDegrees: sunHorizon.azimuth,
+      angularRadiusDegrees: angularRadiusDegrees(SUN_RADIUS_KM, sunEquator.dist),
+    },
+    moon: {
+      altitudeDegrees: moonHorizon.altitude,
+      azimuthDegrees: moonHorizon.azimuth,
+      angularRadiusDegrees: angularRadiusDegrees(MOON_RADIUS_KM, moonEquator.dist),
+    },
+  };
 };
 
 const makeContact = (

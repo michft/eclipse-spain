@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +15,8 @@ import {
 import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
 import { Card } from "./src/components/Card";
-import { HorizonChart } from "./src/components/HorizonChart";
+import { HorizonSimulator } from "./src/components/HorizonSimulator";
+import { LocationFinderPanel } from "./src/components/LocationFinderPanel";
 import { MapPanel } from "./src/components/MapPanel";
 import {
   ECLIPSE_EVENTS,
@@ -25,7 +26,6 @@ import {
 } from "./src/data/eclipseEvents";
 import {
   CONTACT_IDS,
-  type ContactId,
   type EclipseContact,
 } from "./src/domain/eclipse";
 import { isValidGeoPoint, type GeoPoint } from "./src/domain/geo";
@@ -33,6 +33,7 @@ import {
   type RemoteData,
   useLocationAnalysis,
 } from "./src/features/analysis/useLocationAnalysis";
+import { useLocationFinder } from "./src/features/analysis/useLocationFinder";
 import { getCurrentLocation } from "./src/services/geolocation";
 import {
   OPEN_METEO_ELEVATION_SOURCE_URL,
@@ -40,10 +41,7 @@ import {
   type CloudForecast,
   type ElevationProfileResult,
 } from "./src/services/openMeteo";
-import {
-  OPENSTREETMAP_SOURCE_URL,
-  type TransportProximity,
-} from "./src/services/overpass";
+import { OPENSTREETMAP_SOURCE_URL } from "./src/services/overpass";
 import {
   copyText,
   makeQrCode,
@@ -51,14 +49,6 @@ import {
   updateShareUrl,
 } from "./src/services/share";
 import { theme } from "./src/styles/theme";
-
-const transportLabels = {
-  rail: "Rail",
-  bus: "Bus",
-  airport: "Airport",
-  ferry: "Ferry",
-  parking: "Parking",
-} as const;
 
 const defaultLocation = (event: EclipseEventDefinition): GeoPoint =>
   event.centerLine[Math.floor(event.centerLine.length / 2)] ?? event.mapCenter;
@@ -145,7 +135,7 @@ const ContactRow = ({ contact }: { contact: EclipseContact | null }) => {
  * Renders the eclipse event and location planning screen.
  *
  * Provides event selection, coordinate and device-location input, map-based location
- * selection, eclipse analysis, terrain and weather information, nearby transport,
+ * selection, eclipse analysis, terrain and weather information, location finding,
  * audio planning, source links, and sharing controls. Interactive controls and
  * links include accessible labels and roles.
  */
@@ -166,29 +156,15 @@ export default function App() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
-  const [horizonPhaseId, setHorizonPhaseId] =
-    useState<ContactId>("maximum");
-  const { analysis, analyze, analyzeHorizon } = useLocationAnalysis(
+  const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
   );
-  const previousAnalysisSelection = useRef<{
-    locationKey: string;
-    phaseId: ContactId;
-  } | null>(null);
+  const { finder, find: findLocations, reset: resetFinder } = useLocationFinder();
 
   useEffect(() => {
-    const locationKey = `${selectedEvent.id}:${location.latitude}:${location.longitude}`;
-    const previous = previousAnalysisSelection.current;
-    previousAnalysisSelection.current = { locationKey, phaseId: horizonPhaseId };
-    if (previous?.locationKey === locationKey) {
-      if (previous.phaseId !== horizonPhaseId) {
-        void analyzeHorizon(selectedEvent, location, horizonPhaseId);
-      }
-      return;
-    }
-    void analyze(selectedEvent, location, horizonPhaseId);
-  }, [analyze, analyzeHorizon, horizonPhaseId, location, selectedEvent]);
+    void analyze(selectedEvent, location);
+  }, [analyze, location, selectedEvent]);
 
   useEffect(() => {
     let active = true;
@@ -212,7 +188,13 @@ export default function App() {
     };
   }, [location, selectedEvent.id]);
 
-  const selectLocation = (nextLocation: GeoPoint): void => {
+  const selectLocation = (
+    nextLocation: GeoPoint,
+    preserveCandidates = false,
+  ): void => {
+    if (!preserveCandidates) {
+      resetFinder();
+    }
     setLocationError(null);
     setLocation(nextLocation);
     setLatitudeInput(nextLocation.latitude.toFixed(5));
@@ -221,7 +203,6 @@ export default function App() {
 
   const selectEvent = (nextEventId: EclipseEventId): void => {
     const nextEvent = getEclipseEvent(nextEventId);
-    setHorizonPhaseId("maximum");
     setEventId(nextEventId);
     selectLocation(defaultLocation(nextEvent));
   };
@@ -243,7 +224,7 @@ export default function App() {
       nextLocation.latitude === location.latitude &&
       nextLocation.longitude === location.longitude
     ) {
-      void analyze(selectedEvent, location, horizonPhaseId);
+      void analyze(selectedEvent, location);
       return;
     }
     selectLocation(nextLocation);
@@ -262,12 +243,6 @@ export default function App() {
 
   const eclipse =
     analysis.eclipse.status === "success" ? analysis.eclipse.value : null;
-  const maximum = eclipse?.contacts.maximum ?? null;
-  const horizonContact = eclipse?.contacts[horizonPhaseId] ?? maximum;
-  const horizonPhaseLabel =
-    horizonContact?.id === "maximum"
-      ? "maximum"
-      : horizonContact?.id.toUpperCase() ?? "selected phase";
   const elevation =
     analysis.elevation.state === "result" &&
     analysis.elevation.result.status === "success"
@@ -277,16 +252,6 @@ export default function App() {
     analysis.cloud.state === "result" &&
     analysis.cloud.result.status === "success"
       ? analysis.cloud.result.value
-      : null;
-  const transport =
-    analysis.transport.state === "result" &&
-    analysis.transport.result.status === "success"
-      ? analysis.transport.result.value
-      : null;
-  const sampledClearance =
-    horizonContact && elevation
-      ? horizonContact.sunAltitudeDegrees -
-        elevation.horizon.highestTerrainAngleDegrees
       : null;
 
   return (
@@ -299,11 +264,12 @@ export default function App() {
             Eclipse Observer
           </Text>
           <Text style={styles.lede}>
-            Pick a point, inspect its terrain horizon, and prepare for totality.
+            Choose a search area, compare observing candidates, and simulate the
+            eclipse over their terrain horizon.
           </Text>
         </View>
 
-        <Card eyebrow="01" title="Event and location">
+        <Card eyebrow="01" title="Find a location">
           <Text style={styles.fieldLabel}>Eclipse</Text>
           <View style={styles.eventOptions}>
             {ECLIPSE_EVENTS.map((event) => (
@@ -355,14 +321,27 @@ export default function App() {
           <View style={styles.mapFrame}>
             <MapPanel
               bounds={selectedEvent.mapBounds}
+              candidates={
+                finder.state === "result" && finder.result.status === "success"
+                  ? finder.result.value.candidates.map(
+                      (candidate) => candidate.location,
+                    )
+                  : []
+              }
               centerLine={selectedEvent.centerLine}
               location={location}
               onLocationChange={selectLocation}
             />
           </View>
           <Text style={styles.smallMuted}>
-            Tap the map to analyse a point. Gold line: NASA-derived centre line.
+            Tap the map to set the rough search centre. Gold line: NASA-derived
+            centre line.
           </Text>
+          <LocationFinderPanel
+            finder={finder}
+            onFind={() => void findLocations(selectedEvent, location)}
+            onSelect={(candidate) => selectLocation(candidate.location, true)}
+          />
         </Card>
 
         <Card eyebrow="02" title="Eclipse at this point">
@@ -407,31 +386,12 @@ export default function App() {
           ) : null}
         </Card>
 
-        <Card eyebrow="03" title="Elevation and terrain horizon">
+        <Card eyebrow="03" title="Live observer sky and terrain horizon">
           <RemoteMessage
             data={analysis.elevation}
             idle="Choose a valid eclipse location to load elevation."
           />
-          {horizonContact ? (
-            <>
-              <Text style={styles.fieldLabel}>Horizon direction at eclipse phase</Text>
-              <View style={styles.actions}>
-                {CONTACT_IDS.map((contactId) => {
-                  const contact = eclipse?.contacts[contactId];
-                  return contact ? (
-                    <ActionButton
-                      key={contactId}
-                      onPress={() => setHorizonPhaseId(contactId)}
-                      secondary={horizonContact.id !== contactId}
-                    >
-                      {contactId.toUpperCase()}
-                    </ActionButton>
-                  ) : null;
-                })}
-              </View>
-            </>
-          ) : null}
-          {elevation && horizonContact ? (
+          {elevation && eclipse ? (
             <>
               <View style={styles.metrics}>
                 <Metric
@@ -439,55 +399,38 @@ export default function App() {
                   value={`${Math.round(elevation.observerElevationMeters)} m`}
                 />
                 <Metric
-                  label={`Sun at ${horizonPhaseLabel}`}
-                  value={`${horizonContact.sunAltitudeDegrees.toFixed(1)}°`}
+                  label="Terrain field of view"
+                  value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
                 />
                 <Metric
-                  label="Highest sampled terrain"
-                  value={`${elevation.horizon.highestTerrainAngleDegrees.toFixed(1)}°`}
-                />
-                <Metric
-                  label="Sampled terrain clearance"
-                  value={sampledClearance === null ? "—" : `${sampledClearance.toFixed(1)}°`}
+                  label="Azimuth samples"
+                  value={String(elevation.skyline.samples.length)}
                 />
               </View>
-              <HorizonChart
-                phaseLabel={horizonPhaseLabel}
-                profile={elevation.horizon}
-                sunAltitudeDegrees={horizonContact.sunAltitudeDegrees}
+              <HorizonSimulator
+                contacts={eclipse.contacts}
+                elevation={elevation}
+                location={location}
               />
               <Text style={styles.footnote}>
-                Profile follows the Sun azimuth at {horizonPhaseLabel} ({
-                  horizonContact.sunAzimuthDegrees.toFixed(1)
-                }°) out to 50 km. Elevation retrieved {formatUtc(
+                Terrain skyline is centred on the Sun at maximum and sampled out
+                to 20 km. Elevation retrieved {formatUtc(
                   elevation.retrievedUtc,
-                )}. Terrain data does not reliably include trees, buildings, haze,
-                cloud, or temporary obstructions. Clearance is a comparison, not a
-                guarantee.
+                )}. This is a terrain simulation, not a visibility guarantee.
               </Text>
             </>
           ) : null}
         </Card>
 
-        <View style={styles.twoColumn}>
-          <Card eyebrow="04" style={styles.columnCard} title="Cloud forecast">
-            <RemoteMessage
-              data={analysis.cloud}
-              idle="Cloud data loads after location analysis."
-            />
-            {cloud ? <CloudDetails cloud={cloud} /> : null}
-          </Card>
+        <Card eyebrow="04" title="Cloud forecast">
+          <RemoteMessage
+            data={analysis.cloud}
+            idle="Cloud data loads after location analysis."
+          />
+          {cloud ? <CloudDetails cloud={cloud} /> : null}
+        </Card>
 
-          <Card eyebrow="05" style={styles.columnCard} title="Nearby transport">
-            <RemoteMessage
-              data={analysis.transport}
-              idle="Transport data loads after location analysis."
-            />
-            {transport ? <TransportDetails transport={transport} /> : null}
-          </Card>
-        </View>
-
-        <Card eyebrow="06" title="Audio timeline">
+        <Card eyebrow="05" title="Audio timeline">
           {eclipse ? (
             <AudioTimelinePanel
               contacts={eclipse.contacts}
@@ -501,7 +444,7 @@ export default function App() {
           )}
         </Card>
 
-        <Card eyebrow="07" title="Sources and sharing">
+        <Card eyebrow="06" title="Sources and sharing">
           <View style={styles.sourceList}>
             {selectedEvent.sources.map((source) => (
               <Text
@@ -588,41 +531,6 @@ const CloudDetails = ({ cloud }: { cloud: CloudForecast }) => (
       recheck near the event.
     </Text>
   </>
-);
-
-const TransportDetails = ({
-  transport,
-}: {
-  transport: TransportProximity;
-}) => (
-  <View style={styles.rows}>
-    <Text style={styles.smallMuted}>
-      Query radius {transport.radiusKm} km · retrieved {formatUtc(
-        transport.retrievedUtc,
-      )}
-    </Text>
-    {Object.entries(transport.nearest).map(([mode, item]) => (
-      <View key={mode} style={styles.transportRow}>
-        <Text style={styles.rowTitle}>
-          {transportLabels[mode as keyof typeof transportLabels]}
-        </Text>
-        {item ? (
-          <Text
-            accessibilityRole="link"
-            onPress={() => void Linking.openURL(item.osmUrl)}
-            style={styles.link}
-          >
-            {item.name} · {item.distanceKm.toFixed(1)} km ↗
-          </Text>
-        ) : (
-          <Text style={styles.smallMuted}>None found within {transport.radiusKm} km</Text>
-        )}
-      </View>
-    ))}
-    <Text style={styles.footnote}>
-      Straight-line proximity only; not proof of service, access, or a viable route.
-    </Text>
-  </View>
 );
 
 const styles = StyleSheet.create({
@@ -783,23 +691,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: theme.space.small,
-  },
-  twoColumn: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.large,
-  },
-  columnCard: {
-    flexBasis: 320,
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  transportRow: {
-    borderBottomColor: theme.color.border,
-    borderBottomWidth: 1,
-    gap: theme.space.xsmall,
-    paddingVertical: 10,
   },
   sourceList: {
     alignItems: "flex-start",

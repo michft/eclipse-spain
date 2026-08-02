@@ -6,6 +6,7 @@ import { theme } from "../styles/theme";
 
 interface MapPanelProps {
   bounds: MapBounds;
+  candidates?: readonly GeoPoint[];
   centerLine: readonly GeoPoint[];
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;

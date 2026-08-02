@@ -15,6 +15,7 @@ import type { GeoPoint } from "../domain/geo";
 
 interface MapPanelProps {
   bounds: MapBounds;
+  candidates?: readonly GeoPoint[];
   centerLine: readonly GeoPoint[];
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
@@ -58,6 +59,7 @@ const MapClick = ({
 
 export const MapPanel = ({
   bounds,
+  candidates = [],
   centerLine,
   location,
   onLocationChange,
@@ -84,6 +86,19 @@ export const MapPanel = ({
       radius={9}
       weight={3}
     />
+    {candidates.map((candidate, index) => (
+      <CircleMarker
+        center={[candidate.latitude, candidate.longitude]}
+        key={`${candidate.latitude}:${candidate.longitude}`}
+        pathOptions={{
+          color: "#081018",
+          fillColor: index === 0 ? "#ffc94d" : "#65d6a6",
+          fillOpacity: 1,
+        }}
+        radius={index === 0 ? 8 : 6}
+        weight={2}
+      />
+    ))}
     <MapClick onLocationChange={onLocationChange} />
   </MapContainer>
 );

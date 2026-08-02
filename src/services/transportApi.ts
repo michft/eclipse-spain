@@ -2,6 +2,7 @@ import { isValidGeoPoint, type GeoPoint } from "../domain/geo";
 import type { FetchFunction } from "./result";
 import {
   makeTransportQuery,
+  OVERPASS_FALLBACK_PROVIDER_URL,
   OVERPASS_PROVIDER_URL,
 } from "./overpass";
 import { createRequestTimeout } from "./requestTimeout";
@@ -45,12 +46,17 @@ export const handleTransportRequest = async (
 
   const timeout = createRequestTimeout(OVERPASS_PROXY_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(OVERPASS_PROVIDER_URL, {
+    const requestInit: RequestInit = {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `data=${encodeURIComponent(makeTransportQuery(location))}`,
       signal: timeout.signal,
-    });
+    };
+    const primary = await fetchFunction(OVERPASS_PROVIDER_URL, requestInit);
+    const response =
+      primary.ok || primary.status < 500
+        ? primary
+        : await fetchFunction(OVERPASS_FALLBACK_PROVIDER_URL, requestInit);
     return new Response(response.body, {
       status: response.status,
       headers: {
