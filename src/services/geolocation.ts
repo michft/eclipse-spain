@@ -19,7 +19,18 @@ export const getCurrentLocation = (): Promise<ServiceResult<GeoPoint>> =>
         });
       },
       (error) => {
-        resolve({ status: "error", reason: error.message });
+        const mappedReason =
+          error.code === 1
+            ? "Location permission was denied."
+            : error.code === 2
+              ? "Your location is currently unavailable."
+              : error.code === 3
+                ? "Finding your location timed out."
+                : null;
+        resolve({
+          status: "error",
+          reason: mappedReason ?? (error.message || "Could not determine location."),
+        });
       },
       { enableHighAccuracy: true, maximumAge: 30_000, timeout: 15_000 },
     );

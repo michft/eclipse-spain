@@ -49,5 +49,82 @@ describe("Overpass transport adapter", () => {
     expect(result.value.nearest.bus).toBeNull();
     expect(result.value.nearest.rail?.osmUrl).toContain("/node/2");
     expect(fetchFunction.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(fetchFunction.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("returns the HTTP status for non-ok responses", async () => {
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response("Unavailable", { status: 502 }),
+    );
+
+    await expect(
+      fetchTransportProximity({ latitude: 0, longitude: 0 }, fetchFunction),
+    ).resolves.toEqual({
+      status: "error",
+      reason: "Transport request failed with HTTP 502.",
+    });
+  });
+
+  it("rejects payloads without an elements array", async () => {
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response(JSON.stringify({ remark: "no elements" }), { status: 200 }),
+    );
+
+    await expect(
+      fetchTransportProximity({ latitude: 0, longitude: 0 }, fetchFunction),
+    ).resolves.toEqual({
+      status: "error",
+      reason: "Transport response was invalid.",
+    });
+  });
+
+  it("skips locationless and malformed elements", async () => {
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response(
+        JSON.stringify({
+          elements: [
+            { type: "node", id: 1, tags: { railway: "station" } },
+            {
+              type: "way",
+              id: 2,
+              center: { lat: "bad", lon: 0 },
+              tags: { amenity: "parking" },
+            },
+            {
+              type: "node",
+              id: 3,
+              lat: 0,
+              lon: 0,
+              tags: { railway: 42 },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await fetchTransportProximity(
+      { latitude: 0, longitude: 0 },
+      fetchFunction,
+    );
+
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(Object.values(result.value.nearest).every((item) => item === null)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("maps rejected requests to the public error result", async () => {
+    const fetchFunction = vi.fn<FetchFunction>(async () => {
+      throw new Error("Overpass network failed.");
+    });
+
+    await expect(
+      fetchTransportProximity({ latitude: 0, longitude: 0 }, fetchFunction),
+    ).resolves.toEqual({
+      status: "error",
+      reason: "Overpass network failed.",
+    });
   });
 });

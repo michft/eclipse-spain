@@ -23,18 +23,23 @@ import {
   type EclipseEventDefinition,
   type EclipseEventId,
 } from "./src/data/eclipseEvents";
-import type { EclipseContact } from "./src/domain/eclipse";
+import { CONTACT_IDS, type EclipseContact } from "./src/domain/eclipse";
 import { isValidGeoPoint, type GeoPoint } from "./src/domain/geo";
 import {
   type RemoteData,
   useLocationAnalysis,
 } from "./src/features/analysis/useLocationAnalysis";
 import { getCurrentLocation } from "./src/services/geolocation";
-import type {
-  CloudForecast,
-  ElevationProfileResult,
+import {
+  OPEN_METEO_ELEVATION_SOURCE_URL,
+  OPEN_METEO_FORECAST_SOURCE_URL,
+  type CloudForecast,
+  type ElevationProfileResult,
 } from "./src/services/openMeteo";
-import type { TransportProximity } from "./src/services/overpass";
+import {
+  OPENSTREETMAP_SOURCE_URL,
+  type TransportProximity,
+} from "./src/services/overpass";
 import {
   copyText,
   makeQrCode,
@@ -43,7 +48,6 @@ import {
 } from "./src/services/share";
 import { theme } from "./src/styles/theme";
 
-const contactOrder = ["c1", "c2", "maximum", "c3", "c4"] as const;
 const transportLabels = {
   rail: "Rail",
   bus: "Bus",
@@ -156,6 +160,7 @@ export default function App() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
   const { analysis, analyze } = useLocationAnalysis(selectedEvent, location);
 
@@ -168,10 +173,15 @@ export default function App() {
     const nextShareUrl = updateShareUrl(selectedEvent.id, location);
     setShareUrl(nextShareUrl);
     setQrCode(null);
+    setQrError(null);
     if (nextShareUrl) {
-      void makeQrCode(nextShareUrl).then((dataUrl) => {
+      void makeQrCode(nextShareUrl).then((result) => {
         if (active) {
-          setQrCode(dataUrl);
+          if (result.status === "success") {
+            setQrCode(result.value);
+          } else {
+            setQrError(result.reason);
+          }
         }
       });
     }
@@ -194,6 +204,10 @@ export default function App() {
   };
 
   const useCoordinates = (): void => {
+    if (!latitudeInput.trim() || !longitudeInput.trim()) {
+      setLocationError("Enter latitude −90 to 90 and longitude −180 to 180.");
+      return;
+    }
     const nextLocation = {
       latitude: Number(latitudeInput.trim()),
       longitude: Number(longitudeInput.trim()),
@@ -349,7 +363,7 @@ export default function App() {
                 />
               </View>
               <View style={styles.rows}>
-                {contactOrder.map((contactId) => (
+                {CONTACT_IDS.map((contactId) => (
                   <ContactRow
                     contact={eclipse.contacts[contactId]}
                     key={contactId}
@@ -403,7 +417,7 @@ export default function App() {
         </Card>
 
         <View style={styles.twoColumn}>
-          <Card eyebrow="04" title="Cloud forecast">
+          <Card eyebrow="04" style={styles.columnCard} title="Cloud forecast">
             <RemoteMessage
               data={analysis.cloud}
               idle="Cloud data loads after location analysis."
@@ -411,7 +425,7 @@ export default function App() {
             {cloud ? <CloudDetails cloud={cloud} /> : null}
           </Card>
 
-          <Card eyebrow="05" title="Nearby transport">
+          <Card eyebrow="05" style={styles.columnCard} title="Nearby transport">
             <RemoteMessage
               data={analysis.transport}
               idle="Transport data loads after location analysis."
@@ -449,7 +463,7 @@ export default function App() {
             <Text
               accessibilityRole="link"
               onPress={() =>
-                void Linking.openURL("https://open-meteo.com/en/docs/elevation-api")
+                void Linking.openURL(OPEN_METEO_ELEVATION_SOURCE_URL)
               }
               style={styles.link}
             >
@@ -457,7 +471,7 @@ export default function App() {
             </Text>
             <Text
               accessibilityRole="link"
-              onPress={() => void Linking.openURL("https://open-meteo.com/en/docs")}
+              onPress={() => void Linking.openURL(OPEN_METEO_FORECAST_SOURCE_URL)}
               style={styles.link}
             >
               Open-Meteo weather forecast ↗
@@ -465,7 +479,7 @@ export default function App() {
             <Text
               accessibilityRole="link"
               onPress={() =>
-                void Linking.openURL("https://www.openstreetmap.org/copyright")
+                void Linking.openURL(OPENSTREETMAP_SOURCE_URL)
               }
               style={styles.link}
             >
@@ -479,6 +493,8 @@ export default function App() {
                 source={{ uri: qrCode }}
                 style={styles.qrCode}
               />
+            ) : qrError ? (
+              <Text style={styles.warning}>{qrError}</Text>
             ) : (
               <ActivityIndicator color={theme.color.accent} />
             )}
@@ -711,7 +727,15 @@ const styles = StyleSheet.create({
     gap: theme.space.small,
   },
   twoColumn: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: theme.space.large,
+  },
+  columnCard: {
+    flexBasis: 320,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   transportRow: {
     borderBottomColor: theme.color.border,

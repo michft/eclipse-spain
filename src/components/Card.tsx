@@ -1,12 +1,19 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
-import { theme } from '@/styles/theme';
+import { theme } from '../styles/theme';
 
 type CardProps = PropsWithChildren<{
   title: string;
   eyebrow?: string;
   action?: ReactNode;
+  style?: StyleProp<ViewStyle>;
 }>;
 
 /**
@@ -26,9 +33,10 @@ type CardProps = PropsWithChildren<{
  *   <Text>Profile details</Text>
  * </Card>
  */
-export function Card({ action, children, eyebrow, title }: CardProps) {
+
+export function Card({ action, children, eyebrow, style, title }: CardProps) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <View style={styles.header}>
         <View style={styles.heading}>
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}

@@ -5,6 +5,7 @@ import {
   type EclipseEventId,
 } from "../data/eclipseEvents";
 import { isValidGeoPoint, type GeoPoint } from "../domain/geo";
+import type { ServiceResult } from "./result";
 
 export interface SharedSelection {
   eventId: EclipseEventId;
@@ -20,8 +21,16 @@ export const readSharedSelection = (): SharedSelection | null => {
   }
   const params = new URL(window.location.href).searchParams;
   const eventId = params.get("event");
-  const latitude = Number(params.get("lat"));
-  const longitude = Number(params.get("lon"));
+  const latitudeParam = params.get("lat");
+  const longitudeParam = params.get("lon");
+  if (!latitudeParam?.trim() || !longitudeParam?.trim()) {
+    return null;
+  }
+  const latitude = Number(latitudeParam);
+  const longitude = Number(longitudeParam);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
   const location = { latitude, longitude };
 
   return eventId && isEventId(eventId) && isValidGeoPoint(location)
@@ -44,18 +53,32 @@ export const updateShareUrl = (
   return url.toString();
 };
 
-export const makeQrCode = (value: string): Promise<string> =>
-  QRCode.toDataURL(value, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 360,
-    color: { dark: "#081018", light: "#f7f2df" },
-  });
+export const makeQrCode = async (
+  value: string,
+): Promise<ServiceResult<string>> => {
+  try {
+    return {
+      status: "success",
+      value: await QRCode.toDataURL(value, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 360,
+        color: { dark: "#081018", light: "#f7f2df" },
+      }),
+    };
+  } catch {
+    return { status: "error", reason: "QR code could not be generated." };
+  }
+};
 
 export const copyText = async (value: string): Promise<boolean> => {
   if (typeof navigator === "undefined" || !navigator.clipboard) {
     return false;
   }
-  await navigator.clipboard.writeText(value);
-  return true;
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
 };

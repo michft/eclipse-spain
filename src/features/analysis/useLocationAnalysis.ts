@@ -81,31 +81,57 @@ export const useLocationAnalysis = (
 
       const maximum = initialEclipse.value.contacts.maximum;
       if (!maximum) {
-        return;
-      }
-      const [elevation, cloud, transport] = await Promise.all([
-        fetchElevationProfile(location, maximum.sunAzimuthDegrees),
-        fetchCloudForecast(location, maximum.utc),
-        fetchTransportProximity(location),
-      ]);
-      if (requestNumber.current !== currentRequest) {
+        setAnalysis({
+          eclipse: initialEclipse,
+          elevation: { state: "idle" },
+          cloud: { state: "idle" },
+          transport: { state: "idle" },
+        });
         return;
       }
 
-      const eclipse =
-        elevation.status === "success"
-          ? calculateLocalEclipse(
-              event,
-              location,
-              elevation.value.observerElevationMeters,
-            )
-          : initialEclipse;
-      setAnalysis({
-        eclipse,
-        elevation: { state: "result", result: elevation },
-        cloud: { state: "result", result: cloud },
-        transport: { state: "result", result: transport },
+      const elevationRequest = fetchElevationProfile(
+        location,
+        maximum.sunAzimuthDegrees,
+      ).then((elevation) => {
+        if (requestNumber.current !== currentRequest) {
+          return;
+        }
+        setAnalysis((current) => ({
+          ...current,
+          eclipse:
+            elevation.status === "success"
+              ? calculateLocalEclipse(
+                  event,
+                  location,
+                  elevation.value.observerElevationMeters,
+                )
+              : current.eclipse,
+          elevation: { state: "result", result: elevation },
+        }));
       });
+      const cloudRequest = fetchCloudForecast(location, maximum.utc).then((cloud) => {
+        if (requestNumber.current !== currentRequest) {
+          return;
+        }
+        setAnalysis((current) => ({
+          ...current,
+          cloud: { state: "result", result: cloud },
+        }));
+      });
+      const transportRequest = fetchTransportProximity(location).then((transport) => {
+        if (requestNumber.current !== currentRequest) {
+          return;
+        }
+        setAnalysis((current) => ({
+          ...current,
+          transport: { state: "result", result: transport },
+        }));
+      });
+
+      await elevationRequest;
+      await cloudRequest;
+      await transportRequest;
     },
     [],
   );

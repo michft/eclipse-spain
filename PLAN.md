@@ -24,7 +24,7 @@ The MVP ships with three event definitions using the same calculation pipeline:
 | Event | Region label | Type |
 | --- | --- | --- |
 | 12 August 2026 | Spain | Total solar eclipse |
-| 2 August 2027 | Middle East | Total solar eclipse |
+| 2 August 2027 | North Africa and the Middle East | Total solar eclipse |
 | 22 July 2028 | Sydney and Australia | Total solar eclipse |
 
 Event-specific values live in data files. UI and calculation code must not contain region-specific branches.
@@ -203,7 +203,7 @@ Implementation rules:
 | Map | OpenStreetMap-compatible tiles with visible attribution |
 | Transport | OpenStreetMap via Overpass API |
 
-Every result card exposes its source link. Derived results identify the method used. Store source URLs with event/configuration data instead of scattering them through components.
+Card 07 is the intentional source and comparison hub for the results in Cards 01–06. Derived results identify their method inline where useful. Store source URLs with event or service configuration instead of scattering them through components.
 
 ## Repository shape
 

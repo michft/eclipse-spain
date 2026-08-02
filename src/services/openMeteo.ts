@@ -5,15 +5,19 @@ import {
   type HorizonProfile,
 } from "../domain/horizon";
 import type { FetchFunction, ServiceResult } from "./result";
+import { createRequestTimeout } from "./requestTimeout";
 
 export const OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation";
 export const OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
-export const OPEN_METEO_SOURCE_URL = "https://open-meteo.com/en/docs";
+export const OPEN_METEO_ELEVATION_SOURCE_URL =
+  "https://open-meteo.com/en/docs/elevation-api";
+export const OPEN_METEO_FORECAST_SOURCE_URL = "https://open-meteo.com/en/docs";
 
 const HORIZON_DISTANCES_KM = [
   0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 12, 16, 20, 30, 40, 50,
 ] as const;
 const FORECAST_RANGE_DAYS = 16;
+const OPEN_METEO_TIMEOUT_MILLISECONDS = 10_000;
 
 interface ElevationResponse {
   elevation: number[];
@@ -85,8 +89,11 @@ export const fetchElevationProfile = async (
       .join(","),
   });
 
+  const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_ELEVATION_URL}?${query}`);
+    const response = await fetchFunction(`${OPEN_METEO_ELEVATION_URL}?${query}`, {
+      signal: timeout.signal,
+    });
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }
@@ -118,7 +125,7 @@ export const fetchElevationProfile = async (
           azimuthDegrees,
           samples,
         ),
-        sourceUrl: OPEN_METEO_SOURCE_URL,
+        sourceUrl: OPEN_METEO_ELEVATION_SOURCE_URL,
         retrievedUtc: now.toISOString(),
       },
     };
@@ -127,6 +134,8 @@ export const fetchElevationProfile = async (
       status: "error",
       reason: error instanceof Error ? error.message : "Elevation request failed.",
     };
+  } finally {
+    timeout.clear();
   }
 };
 
@@ -211,8 +220,11 @@ export const fetchCloudForecast = async (
     end_date: date,
   });
 
+  const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_FORECAST_URL}?${query}`);
+    const response = await fetchFunction(`${OPEN_METEO_FORECAST_URL}?${query}`, {
+      signal: timeout.signal,
+    });
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }
@@ -253,7 +265,7 @@ export const fetchCloudForecast = async (
         lowPercent,
         middlePercent,
         highPercent,
-        sourceUrl: OPEN_METEO_SOURCE_URL,
+        sourceUrl: OPEN_METEO_FORECAST_SOURCE_URL,
       },
     };
   } catch (error: unknown) {
@@ -261,5 +273,7 @@ export const fetchCloudForecast = async (
       status: "error",
       reason: error instanceof Error ? error.message : "Cloud forecast request failed.",
     };
+  } finally {
+    timeout.clear();
   }
 };

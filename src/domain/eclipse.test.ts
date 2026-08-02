@@ -82,6 +82,9 @@ describe("local eclipse calculations", () => {
     const location = { latitude: 41.8167, longitude: -3.185 };
     const result = calculateLocalEclipse(getEclipseEvent("spain-2026"), location);
     expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.value.contacts.maximum).not.toBeNull();
+    }
     if (result.status !== "success" || !result.value.contacts.maximum) {
       return;
     }
@@ -94,6 +97,13 @@ describe("local eclipse calculations", () => {
     ).toBeCloseTo(1, 6);
     expect(
       calculateSolarObscuration(location, new Date("2026-08-12T12:00:00Z")),
+    ).toBe(0);
+    expect(
+      calculateSolarObscuration(
+        location,
+        new Date(result.value.contacts.maximum.utc),
+        Number.NaN,
+      ),
     ).toBe(0);
   });
 });

@@ -19,6 +19,17 @@ import {
   subscribeToPageVisibility,
 } from "../../services/pageVisibility";
 
+interface ClockBaseline {
+  monotonicMilliseconds: number;
+  utcMilliseconds: number;
+}
+
+const monotonicNow = (): number =>
+  typeof performance === "undefined" ? Date.now() : performance.now();
+
+const currentUtcFromBaseline = (baseline: ClockBaseline): number =>
+  baseline.utcMilliseconds + monotonicNow() - baseline.monotonicMilliseconds;
+
 export const useAudioTimeline = (contacts: ContactRecord) => {
   const [markers, setMarkers] = useState<AudioMarker[]>(loadAudioMarkers);
   const [armed, setArmed] = useState(false);
@@ -27,7 +38,11 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   const [message, setMessage] = useState(
     "Test audio, then arm the timeline while keeping this page open.",
   );
-  const previousTick = useRef(Date.now());
+  const clockBaseline = useRef<ClockBaseline>({
+    monotonicMilliseconds: monotonicNow(),
+    utcMilliseconds: Date.now(),
+  });
+  const previousTick = useRef(clockBaseline.current.utcMilliseconds);
   const firedIds = useRef(new Set<string>());
   const resolvedMarkers = useMemo(
     () => resolveAudioMarkers(markers, contacts),
@@ -44,7 +59,15 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
       subscribeToPageVisibility((hidden) => {
         if (hidden) {
           setPageWasHidden(true);
+          return;
         }
+        const utcMilliseconds = Date.now();
+        clockBaseline.current = {
+          monotonicMilliseconds: monotonicNow(),
+          utcMilliseconds,
+        };
+        previousTick.current = utcMilliseconds;
+        setNow(utcMilliseconds);
       }),
     [],
   );
@@ -52,12 +75,19 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   useEffect(() => {
     setArmed(false);
     firedIds.current.clear();
+    const utcMilliseconds = Date.now();
+    clockBaseline.current = {
+      monotonicMilliseconds: monotonicNow(),
+      utcMilliseconds,
+    };
+    previousTick.current = utcMilliseconds;
+    setNow(utcMilliseconds);
     setMessage("Eclipse contacts changed. Test audio, then arm again.");
   }, [contacts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      const current = Date.now();
+      const current = currentUtcFromBaseline(clockBaseline.current);
       setNow(current);
       if (armed) {
         const due = findDueMarkers(
@@ -83,6 +113,7 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   }, [armed, resolvedMarkers]);
 
   const updateMarker = (id: string, update: Partial<AudioMarker>): void => {
+    firedIds.current.delete(id);
     setMarkers((current) =>
       current.map((marker) =>
         marker.id === id ? { ...marker, ...update, id: marker.id } : marker,
@@ -119,7 +150,13 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   const arm = async (): Promise<void> => {
     try {
       await primeAudio();
-      previousTick.current = Date.now();
+      const utcMilliseconds = Date.now();
+      clockBaseline.current = {
+        monotonicMilliseconds: monotonicNow(),
+        utcMilliseconds,
+      };
+      previousTick.current = utcMilliseconds;
+      setNow(utcMilliseconds);
       firedIds.current.clear();
       setPageWasHidden(false);
       setArmed(true);
