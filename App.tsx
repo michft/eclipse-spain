@@ -137,6 +137,14 @@ const ContactRow = ({ contact }: { contact: EclipseContact | null }) => {
   );
 };
 
+/**
+ * Renders the eclipse event and location planning screen.
+ *
+ * Provides event selection, coordinate and device-location input, map-based location
+ * selection, eclipse analysis, terrain and weather information, nearby transport,
+ * audio planning, source links, and sharing controls. Interactive controls and
+ * links include accessible labels and roles.
+ */
 export default function App() {
   const [initialSelection] = useState(() => readSharedSelection());
   const [eventId, setEventId] = useState<EclipseEventId>(

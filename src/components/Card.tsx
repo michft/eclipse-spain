@@ -16,6 +16,24 @@ type CardProps = PropsWithChildren<{
   style?: StyleProp<ViewStyle>;
 }>;
 
+/**
+ * Presents content in a themed card with a heading and optional action.
+ *
+ * The title is rendered with header accessibility semantics. The optional
+ * eyebrow appears above the title, while the action is placed beside the
+ * heading.
+ *
+ * @param title - The card heading
+ * @param eyebrow - Optional label displayed above the heading
+ * @param action - Optional element displayed beside the heading
+ * @param children - Content displayed below the heading
+ *
+ * @example
+ * <Card eyebrow="Account" title="Profile" action={<Button title="Edit" />}>
+ *   <Text>Profile details</Text>
+ * </Card>
+ */
+
 export function Card({ action, children, eyebrow, style, title }: CardProps) {
   return (
     <View style={[styles.card, style]}>
