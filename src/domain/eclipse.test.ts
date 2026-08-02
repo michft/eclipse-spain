@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getEclipseEvent } from "../data/eclipseEvents";
-import { calculateLocalEclipse } from "./eclipse";
+import { calculateLocalEclipse, calculateSolarObscuration } from "./eclipse";
 
 const centralLocations = [
   {
@@ -76,5 +76,24 @@ describe("local eclipse calculations", () => {
         longitude: 0,
       }),
     ).toEqual({ status: "error", reason: "Latitude or longitude is invalid." });
+  });
+
+  it("calculates live obscuration from topocentric disc overlap", () => {
+    const location = { latitude: 41.8167, longitude: -3.185 };
+    const result = calculateLocalEclipse(getEclipseEvent("spain-2026"), location);
+    expect(result.status).toBe("success");
+    if (result.status !== "success" || !result.value.contacts.maximum) {
+      return;
+    }
+
+    expect(
+      calculateSolarObscuration(
+        location,
+        new Date(result.value.contacts.maximum.utc),
+      ),
+    ).toBeCloseTo(1, 6);
+    expect(
+      calculateSolarObscuration(location, new Date("2026-08-12T12:00:00Z")),
+    ).toBe(0);
   });
 });

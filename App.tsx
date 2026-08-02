@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { ActionButton } from "./src/components/ActionButton";
+import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
 import { Card } from "./src/components/Card";
 import { HorizonChart } from "./src/components/HorizonChart";
 import { MapPanel } from "./src/components/MapPanel";
@@ -412,10 +413,17 @@ export default function App() {
         </View>
 
         <Card eyebrow="06" title="Audio timeline">
-          <Text style={styles.muted}>
-            Editable countdown markers are added in the next isolated implementation
-            piece.
-          </Text>
+          {eclipse ? (
+            <AudioTimelinePanel
+              contacts={eclipse.contacts}
+              elevationMeters={elevation?.observerElevationMeters ?? 0}
+              location={location}
+            />
+          ) : (
+            <Text style={styles.muted}>
+              Select a location with eclipse contacts to configure audio.
+            </Text>
+          )}
         </Card>
 
         <Card eyebrow="07" title="Sources and sharing">

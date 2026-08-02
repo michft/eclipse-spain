@@ -75,6 +75,70 @@ const calculateMagnitude = (
   return Math.max(0, (sunRadius + moonRadius - separation) / (2 * sunRadius));
 };
 
+const circleOverlapFraction = (
+  sunRadius: number,
+  moonRadius: number,
+  separation: number,
+): number => {
+  if (separation >= sunRadius + moonRadius) {
+    return 0;
+  }
+  if (separation <= Math.abs(sunRadius - moonRadius)) {
+    return Math.min(1, (moonRadius * moonRadius) / (sunRadius * sunRadius));
+  }
+
+  const sunAngle = Math.acos(
+    clampUnit(
+      (separation * separation + sunRadius * sunRadius - moonRadius * moonRadius) /
+        (2 * separation * sunRadius),
+    ),
+  );
+  const moonAngle = Math.acos(
+    clampUnit(
+      (separation * separation + moonRadius * moonRadius - sunRadius * sunRadius) /
+        (2 * separation * moonRadius),
+    ),
+  );
+  const lens =
+    sunRadius * sunRadius * sunAngle +
+    moonRadius * moonRadius * moonAngle -
+    0.5 *
+      Math.sqrt(
+        Math.max(
+          0,
+          (-separation + sunRadius + moonRadius) *
+            (separation + sunRadius - moonRadius) *
+            (separation - sunRadius + moonRadius) *
+            (separation + sunRadius + moonRadius),
+        ),
+      );
+
+  return Math.max(0, Math.min(1, lens / (Math.PI * sunRadius * sunRadius)));
+};
+
+export const calculateSolarObscuration = (
+  location: GeoPoint,
+  date: Date,
+  elevationMeters = 0,
+): number => {
+  if (!isValidGeoPoint(location) || !Number.isFinite(date.getTime())) {
+    return 0;
+  }
+  const observer = new Observer(
+    location.latitude,
+    location.longitude,
+    elevationMeters,
+  );
+  const sun = Equator(Body.Sun, date, observer, false, true);
+  const moon = Equator(Body.Moon, date, observer, false, true);
+  const separation = angularSeparationRadians(sun.ra, sun.dec, moon.ra, moon.dec);
+  const sunRadius = Math.asin(SUN_RADIUS_KM / (sun.dist * ASTRONOMICAL_UNIT_KM));
+  const moonRadius = Math.asin(
+    MOON_RADIUS_KM / (moon.dist * ASTRONOMICAL_UNIT_KM),
+  );
+  return circleOverlapFraction(sunRadius, moonRadius, separation);
+};
+
 const makeContact = (
   id: ContactId,
   label: string,
