@@ -6,11 +6,14 @@ Build a responsive Expo TypeScript web app for choosing and using an eclipse obs
 
 The app combines:
 
-- location selection on an OpenStreetMap map;
+- observing-location discovery from a rough search area;
+- candidate ranking by transport access, centre-line distance, and terrain
+  horizon;
+- candidate selection on an OpenStreetMap map;
 - eclipse circumstances for the exact point;
 - distance to the eclipse centre line;
 - nearby transport infrastructure;
-- site elevation and a visual terrain-horizon profile;
+- site elevation and an animated observer-sky terrain-horizon simulation;
 - cloud forecast when the event enters forecast range;
 - a user-editable spoken audio timeline;
 - source/comparison links and QR sharing.
@@ -45,28 +48,33 @@ Event-specific values live in data files. UI and calculation code must not conta
 ## User journey
 
 1. Choose an eclipse.
-2. Use current location, search coordinates, or tap the map.
-3. Review a location summary:
+2. Use current location, coordinates, or the map to choose a rough search area.
+3. Find and compare candidate observing locations. Each candidate combines:
+   - proximity to rail, bus, airport, ferry, or parking infrastructure;
+   - distance to the eclipse centre line;
+   - eclipse type and duration;
+   - terrain clearance along the eclipse path through the sky.
+4. Select a candidate and review its location summary:
    - local eclipse type;
    - C1, C2, maximum, C3, C4 in UTC and local time;
    - magnitude, obscuration, and totality duration;
    - Sun altitude and azimuth;
    - distance to centre line;
    - ground elevation;
-   - terrain profile in the direction of the eclipse;
-   - nearby transport infrastructure;
+   - animated Sun and Moon path over the terrain horizon;
    - cloud forecast or an explicit not-yet-available state.
-4. Open source links to compare results.
-5. Configure audio markers, test audio, and arm the timeline.
-6. Share the app using a canonical link or client-generated QR code.
+5. Open source links to compare results.
+6. Configure audio markers, test audio, and arm the timeline.
+7. Share the app using a canonical link or client-generated QR code.
 
 ## MVP screens
 
 The MVP is one scrollable mobile-first workspace with five sections:
 
-1. **Event and location** — event picker, coordinates, location button, OSM map.
+1. **Find a location** — event picker, rough search point, OSM map, candidate
+   search and ranked candidate selection.
 2. **Eclipse** — contacts, duration, obscuration, centre-line distance.
-3. **Site** — elevation, horizon profile, transport proximity, cloud.
+3. **Observer sky** — elevation, animated terrain horizon, Sun/Moon path, cloud.
 4. **Audio timeline** — countdown state, add/remove/edit markers, test/arm controls.
 5. **Sources and sharing** — provenance links, canonical URL, QR.
 
@@ -87,26 +95,35 @@ Each event definition contains:
 
 ### Location analysis
 
-A location analysis contains independent states for:
+A location search contains independent candidate states for:
+
+- transport access;
+- centre-line distance and eclipse circumstances;
+- terrain horizon clearance.
+
+A selected-location analysis contains independent states for:
 
 - eclipse circumstances;
 - centre-line distance;
 - elevation;
-- horizon profile;
-- transport proximity;
+- azimuth terrain-horizon envelope;
 - cloud forecast;
 - provenance and warnings.
 
 One failed external adapter must not erase successful results from other adapters.
 
-### Horizon display
+### Horizon simulation
 
 The horizon feature is explanatory, not a verdict.
 
-- Sample elevations outward from the observer along the Sun azimuth for the selected eclipse phase.
-- Show distance, terrain elevation, and apparent terrain angle.
-- Overlay the Sun altitude as a reference line.
-- Show observer elevation, sample distance, elevation source, and limitations.
+- Sample elevations across the azimuth range traversed by the eclipse and derive
+  the highest terrain angle for each sampled direction.
+- Render an observer-facing sky view with the terrain silhouette, true Sun and
+  Moon positions, and their path between C1 and C4.
+- Provide play/pause, time scrubbing, contact jumps, and playback speed controls.
+- Update UTC, obscuration, azimuth, altitude, and terrain clearance as simulated
+  time changes.
+- Show observer elevation, sampling source, and limitations.
 - Do not show clear/blocked based on a fixed 2° threshold.
 - Do not create a special C3 + 60 seconds rule.
 - State that terrain data does not include reliable trees, buildings, temporary structures, haze, or cloud.
@@ -119,9 +136,10 @@ The horizon feature is explanatory, not a verdict.
 - If the eclipse is outside forecast range, show **Forecast not available yet**.
 - Never replace missing current forecast with historical climatology without labelling it as a different product.
 
-### Transport display
+### Candidate location discovery
 
-Query OpenStreetMap-derived infrastructure near the point and keep modes separate:
+Query OpenStreetMap-derived infrastructure around the rough search point and
+use it to generate candidate observing locations. Keep modes separate:
 
 - railway stations;
 - bus stops and public-transport platforms;
@@ -129,7 +147,11 @@ Query OpenStreetMap-derived infrastructure near the point and keep modes separat
 - ferry terminals;
 - parking.
 
-Show nearest straight-line distance, object name, OSM link, query radius, and retrieval state. It is proximity, not journey planning or proof of current service.
+Rank candidates using explicit components for infrastructure proximity,
+centre-line distance, and sampled terrain clearance. Show the component values;
+do not hide them behind one unexplained score. Infrastructure proximity is not
+journey planning or proof of current service. There is no standalone transport
+results card after a location has been selected.
 
 ### Audio timeline
 
@@ -176,9 +198,9 @@ App.tsx
   external adapters
     Open-Meteo elevation
     Open-Meteo cloud forecast
-    same-origin transport client
+    same-origin candidate-discovery client
   Vercel Function
-    fixed Overpass/OSM transport query proxy
+    fixed Overpass/OSM candidate query proxy
   event data
     2026 Spain
     2027 Middle East
@@ -202,10 +224,10 @@ Implementation rules:
 | --- | --- |
 | Eclipse calculation | Astronomy Engine, checked against NASA GSFC event data |
 | Centre line | NASA GSFC eclipse path tables |
-| Elevation profile | Open-Meteo elevation API |
+| Terrain horizon | Open-Meteo elevation API |
 | Cloud forecast | Open-Meteo forecast API |
 | Map | OpenStreetMap-compatible tiles with visible attribution |
-| Transport | OpenStreetMap via Overpass API through a same-origin Vercel Function |
+| Candidate transport access | OpenStreetMap via Overpass API through a same-origin Vercel Function |
 
 Card 07 is the intentional source and comparison hub for the results in Cards 01–06. Derived results identify their method inline where useful. Store source URLs with event or service configuration instead of scattering them through components.
 
@@ -240,6 +262,8 @@ Each piece gets focused validation, a meaningful JJ description, and its own boo
 7. `vercel-ready` — production export, Vercel config, documentation, final checks.
 8. `mvp-plan-complete` — phase-selectable horizon details, complete warnings and
    sources, production transport proxy, and plan-to-code reconciliation.
+9. `location-finder` — ranked transport/horizon/centre-line candidate discovery.
+10. `live-horizon` — animated observer-sky terrain and eclipse simulation.
 
 Bookmarks are local organization points. Do not push or deploy unless explicitly requested.
 
@@ -270,7 +294,7 @@ The repository is deployment-ready when:
 
 - `pnpm build:web` creates `dist/` successfully;
 - `vercel.json` builds and serves the Expo SPA with history fallback;
-- `/api/transport` validates coordinates and proxies only the fixed Overpass query;
+- `/api/transport` validates coordinates and proxies only the fixed candidate query;
 - no secret keys are required by the browser bundle;
 - README documents local setup, validation, data limitations, and Vercel deployment;
 - public product version remains absent until the first accepted deployment of
@@ -280,8 +304,8 @@ Deployment itself requires explicit user instruction and Vercel authorization.
 
 ## Implementation status
 
-The MVP source described above is implemented through the `mvp-plan-complete`
-bookmark. The existing `eclipse-spain-ten.vercel.app` deployment predates that
-completion work and is a partial deployment, not the acceptance target. It must
-be redeployed from the bookmark and pass the manual browser checklist before it
-is treated as operational. No public product version is assigned yet.
+The deployed app does not yet satisfy this plan. It analyses a user-selected
+coordinate, exposes transport as an after-the-fact card, and shows a static
+terrain cross-section. Candidate discovery and the live observer-sky horizon are
+required before the MVP can be called complete. No public product version is
+assigned yet.
