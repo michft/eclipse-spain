@@ -6,6 +6,7 @@ export interface GeoPoint {
 const EARTH_RADIUS_KM = 6371.0088;
 
 const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+const toDegrees = (radians: number): number => (radians * 180) / Math.PI;
 
 const angularDistance = (from: GeoPoint, to: GeoPoint): number => {
   const latitudeDelta = toRadians(to.latitude - from.latitude);
@@ -35,6 +36,32 @@ const initialBearing = (from: GeoPoint, to: GeoPoint): number => {
 
 export const distanceKm = (from: GeoPoint, to: GeoPoint): number =>
   angularDistance(from, to) * EARTH_RADIUS_KM;
+
+export const destinationPoint = (
+  start: GeoPoint,
+  bearingDegrees: number,
+  distanceKilometers: number,
+): GeoPoint => {
+  const angular = distanceKilometers / EARTH_RADIUS_KM;
+  const bearing = toRadians(bearingDegrees);
+  const latitude = toRadians(start.latitude);
+  const longitude = toRadians(start.longitude);
+  const destinationLatitude = Math.asin(
+    Math.sin(latitude) * Math.cos(angular) +
+      Math.cos(latitude) * Math.sin(angular) * Math.cos(bearing),
+  );
+  const destinationLongitude =
+    longitude +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angular) * Math.cos(latitude),
+      Math.cos(angular) - Math.sin(latitude) * Math.sin(destinationLatitude),
+    );
+
+  return {
+    latitude: toDegrees(destinationLatitude),
+    longitude: ((toDegrees(destinationLongitude) + 540) % 360) - 180,
+  };
+};
 
 export const distanceToSegmentKm = (
   point: GeoPoint,

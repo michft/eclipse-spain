@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { distanceKm, distanceToPolylineKm, distanceToSegmentKm } from "./geo";
+import {
+  destinationPoint,
+  distanceKm,
+  distanceToPolylineKm,
+  distanceToSegmentKm,
+} from "./geo";
 
 describe("geodesy", () => {
   it("returns about 111 km for one degree of latitude", () => {
@@ -40,5 +45,16 @@ describe("geodesy", () => {
         [{ latitude: 1, longitude: 0 }],
       ),
     ).toBeCloseTo(111.2, 1);
+  });
+
+  it("projects a destination along a bearing", () => {
+    const destination = destinationPoint(
+      { latitude: 0, longitude: 0 },
+      90,
+      111.2,
+    );
+
+    expect(destination.latitude).toBeCloseTo(0, 4);
+    expect(destination.longitude).toBeCloseTo(1, 2);
   });
 });
