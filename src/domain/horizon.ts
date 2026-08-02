@@ -54,9 +54,11 @@ export const makeHorizonProfile = (
     observerElevationMeters,
     azimuthDegrees,
     samples: horizonSamples,
-    highestTerrainAngleDegrees: Math.max(
-      0,
-      ...horizonSamples.map((sample) => sample.apparentTerrainAngleDegrees),
-    ),
+    highestTerrainAngleDegrees:
+      horizonSamples.length === 0
+        ? 0
+        : Math.max(
+            ...horizonSamples.map((sample) => sample.apparentTerrainAngleDegrees),
+          ),
   };
 };

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:web": "expo export -p web"
+    "build:web": "expo export -p web",
+    "validate": "pnpm typecheck && pnpm test && pnpm build:web && git diff --check"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.8",

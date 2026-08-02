@@ -46,6 +46,20 @@ describe("Open-Meteo adapters", () => {
     expect(fetchFunction).not.toHaveBeenCalled();
   });
 
+  it("labels a past forecast separately", async () => {
+    const result = await fetchCloudForecast(
+      { latitude: 0, longitude: 0 },
+      "2026-08-01T10:00:00Z",
+      vi.fn<FetchFunction>(),
+      new Date("2026-08-02T00:00:00Z"),
+    );
+
+    expect(result).toEqual({
+      status: "unavailable",
+      reason: "Forecast for this past time is no longer available.",
+    });
+  });
+
   it("selects the forecast hour nearest maximum", async () => {
     const fetchFunction = vi.fn<FetchFunction>(async () =>
       jsonResponse({

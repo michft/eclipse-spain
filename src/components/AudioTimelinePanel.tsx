@@ -126,9 +126,10 @@ export const AudioTimelinePanel = ({
         {timeline.armed ? "● ARMED · " : ""}
         {timeline.message}
       </Text>
-      {timeline.pageHidden ? (
+      {timeline.pageWasHidden ? (
         <Text style={styles.warning}>
-          Page hidden: the browser may suspend timers and audio. Return to this page.
+          This page was hidden after arming. The browser may have suspended timers;
+          check the timeline and arm again if needed.
         </Text>
       ) : null}
 

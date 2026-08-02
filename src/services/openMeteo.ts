@@ -188,7 +188,13 @@ export const fetchCloudForecast = async (
     return { status: "error", reason: "Cloud forecast time is invalid." };
   }
   const rangeEnd = now.getTime() + FORECAST_RANGE_DAYS * 24 * 60 * 60 * 1000;
-  if (targetTime < now.getTime() || targetTime > rangeEnd) {
+  if (targetTime < now.getTime()) {
+    return {
+      status: "unavailable",
+      reason: "Forecast for this past time is no longer available.",
+    };
+  }
+  if (targetTime > rangeEnd) {
     return {
       status: "unavailable",
       reason: "Forecast not available yet.",

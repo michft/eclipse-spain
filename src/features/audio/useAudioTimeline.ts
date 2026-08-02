@@ -23,7 +23,7 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   const [markers, setMarkers] = useState<AudioMarker[]>(loadAudioMarkers);
   const [armed, setArmed] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [pageHidden, setPageHidden] = useState(isPageHidden);
+  const [pageWasHidden, setPageWasHidden] = useState(isPageHidden);
   const [message, setMessage] = useState(
     "Test audio, then arm the timeline while keeping this page open.",
   );
@@ -40,9 +40,20 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   }, [markers]);
 
   useEffect(
-    () => subscribeToPageVisibility(setPageHidden),
+    () =>
+      subscribeToPageVisibility((hidden) => {
+        if (hidden) {
+          setPageWasHidden(true);
+        }
+      }),
     [],
   );
+
+  useEffect(() => {
+    setArmed(false);
+    firedIds.current.clear();
+    setMessage("Eclipse contacts changed. Test audio, then arm again.");
+  }, [contacts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -110,6 +121,7 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
       await primeAudio();
       previousTick.current = Date.now();
       firedIds.current.clear();
+      setPageWasHidden(false);
       setArmed(true);
       setMessage("Timeline armed. Keep this page awake and visible.");
     } catch (error: unknown) {
@@ -137,7 +149,7 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
     nextMarker,
     now,
     armed,
-    pageHidden,
+    pageWasHidden,
     message,
     addMarker,
     updateMarker,

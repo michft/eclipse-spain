@@ -267,3 +267,10 @@ The repository is deployment-ready when:
 - public product version remains absent until the first successful deployment.
 
 Deployment itself requires explicit user instruction and Vercel authorization.
+
+## Implementation status
+
+The MVP described above is implemented through the `audio-timeline` bookmark.
+The final `vercel-ready` bookmark contains deployment configuration, complete
+operator documentation, and the final validation record. No deployment, public
+version, remote push, or release is part of this implementation run.
