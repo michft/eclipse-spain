@@ -330,12 +330,13 @@ export default function App() {
               }
               centerLine={selectedEvent.centerLine}
               location={location}
-              onLocationChange={selectLocation}
+              onLocationChange={(nextLocation) => selectLocation(nextLocation)}
             />
           </View>
           <Text style={styles.smallMuted}>
-            Tap the map to set the rough search centre. Gold line: NASA-derived
-            centre line.
+            Tap the map to set the rough search centre. Blue: selected point.
+            Purple: top candidate. Green: other candidates. Gold line:
+            NASA-derived centre line.
           </Text>
           <LocationFinderPanel
             finder={finder}

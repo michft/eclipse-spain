@@ -27,7 +27,18 @@ export const useLocationFinder = () => {
       const currentRequest = requestNumber.current + 1;
       requestNumber.current = currentRequest;
       setFinder({ state: "loading" });
-      const result = await findObservingLocationCandidates(event, searchCenter);
+      let result: ServiceResult<LocationCandidateSearch>;
+      try {
+        result = await findObservingLocationCandidates(event, searchCenter);
+      } catch (error: unknown) {
+        result = {
+          status: "error",
+          reason:
+            error instanceof Error && error.message
+              ? error.message
+              : "Location search failed.",
+        };
+      }
       if (requestNumber.current === currentRequest) {
         setFinder({ state: "result", result });
       }

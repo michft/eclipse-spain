@@ -72,17 +72,30 @@ of whether the Sun will be visible. Recheck several models close to the event.
 - Query service: [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
 - Standard map tiles: `tile.openstreetmap.org`
 
-The app queries a 25 km radius around a rough search point and uses the closest
+The app visibly attributes OpenStreetMap on the map and links
+`OPENSTREETMAP_SOURCE_URL` from the source-comparison card. It queries a 25 km
+radius around a rough search point and uses the closest
 separately classified rail, bus, airport, ferry, and parking objects as candidate
 anchors. It evaluates eclipse kind, terrain clearance, centre-line distance, and
 distance from the rough search point, then exposes those score components. There
 is no standalone post-selection transport card. Deployed browsers call the same-origin
 `/api/transport` Vercel Function; it validates coordinates, creates this fixed
-query, and forwards it to a listed public Overpass instance to avoid
-direct-browser CORS failure. An immediate server error is retried once against
-the OpenStreetMap Wiki's listed private.coffee instance. Distance
-is straight-line. OpenStreetMap can be incomplete or stale; candidates are not
-verified observing sites, and the query does not
+query, and forwards it to the FOSSGIS-operated `overpass-api.de` public instance
+with an identifying User-Agent and repository issue URL for operator contact.
+The query requests only tags and object centres, using quick output ordering.
+An HTTP 5xx response body is discarded before the identical query and coordinates
+are retried once against the OpenStreetMap Wiki's listed private.coffee instance.
+Each provider attempt has its own 30-second timeout. The fallback's listed policy
+has no request limit and asks users to notify its operator before large-scale use.
+
+The gateway admits at most 10 request starts per second and 10 simultaneous
+requests per warm Function instance. Excess requests receive HTTP 429 with a
+one-second retry notice. These controls cannot coordinate separate serverless
+instances, so the provider's own limits remain authoritative. Fair-use guidance
+for the primary is below 10,000 queries and 1 GB downloaded per day. This app
+must move to an operated or derived dataset before traffic could exceed that
+budget. Distance is straight-line. OpenStreetMap can be incomplete or stale;
+candidates are not verified observing sites, and the query does not
 verify timetables, legal access, capacity, road conditions, or operation on
 eclipse day.
 

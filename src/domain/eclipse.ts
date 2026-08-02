@@ -6,6 +6,7 @@ import {
   Observer,
   SearchLocalSolarEclipse,
   type EclipseEvent,
+  type EquatorialCoordinates,
 } from "astronomy-engine";
 
 import type { EclipseEventDefinition } from "../data/eclipseEvents";
@@ -130,6 +131,18 @@ const circleOverlapFraction = (
   return Math.max(0, Math.min(1, lens / (Math.PI * sunRadius * sunRadius)));
 };
 
+const obscurationFrom = (
+  sun: EquatorialCoordinates,
+  moon: EquatorialCoordinates,
+): number => {
+  const separation = angularSeparationRadians(sun.ra, sun.dec, moon.ra, moon.dec);
+  const sunRadius = Math.asin(SUN_RADIUS_KM / (sun.dist * ASTRONOMICAL_UNIT_KM));
+  const moonRadius = Math.asin(
+    MOON_RADIUS_KM / (moon.dist * ASTRONOMICAL_UNIT_KM),
+  );
+  return circleOverlapFraction(sunRadius, moonRadius, separation);
+};
+
 export const calculateSolarObscuration = (
   location: GeoPoint,
   date: Date,
@@ -149,12 +162,7 @@ export const calculateSolarObscuration = (
   );
   const sun = Equator(Body.Sun, date, observer, false, true);
   const moon = Equator(Body.Moon, date, observer, false, true);
-  const separation = angularSeparationRadians(sun.ra, sun.dec, moon.ra, moon.dec);
-  const sunRadius = Math.asin(SUN_RADIUS_KM / (sun.dist * ASTRONOMICAL_UNIT_KM));
-  const moonRadius = Math.asin(
-    MOON_RADIUS_KM / (moon.dist * ASTRONOMICAL_UNIT_KM),
-  );
-  return circleOverlapFraction(sunRadius, moonRadius, separation);
+  return obscurationFrom(sun, moon);
 };
 
 export const calculateObserverSky = (
@@ -195,7 +203,7 @@ export const calculateObserverSky = (
     Math.PI;
   return {
     utc: date.toISOString(),
-    obscuration: calculateSolarObscuration(location, date, elevationMeters),
+    obscuration: obscurationFrom(sunEquator, moonEquator),
     sun: {
       altitudeDegrees: sunHorizon.altitude,
       azimuthDegrees: sunHorizon.azimuth,

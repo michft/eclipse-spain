@@ -5,6 +5,8 @@ import { createRequestTimeout } from "./requestTimeout";
 export const OVERPASS_PROVIDER_URL = "https://overpass-api.de/api/interpreter";
 export const OVERPASS_FALLBACK_PROVIDER_URL =
   "https://overpass.private.coffee/api/interpreter";
+export const OVERPASS_USER_AGENT =
+  "EclipseObserver (+https://github.com/michft/eclipse-spain/issues)";
 export const OVERPASS_URL = OVERPASS_PROVIDER_URL;
 export const TRANSPORT_API_PATH = "/api/transport";
 export const OPENSTREETMAP_SOURCE_URL = "https://www.openstreetmap.org/copyright";
@@ -177,7 +179,7 @@ export const makeTransportQuery = (location: GeoPoint): string => {
     nwr(${around})["aeroway"~"^(aerodrome|terminal)$"];
     nwr(${around})["amenity"="ferry_terminal"];
     nwr(${around})["amenity"="parking"];
-  );out center tags;`;
+  );out center tags qt;`;
 };
 
 interface TransportRequest {

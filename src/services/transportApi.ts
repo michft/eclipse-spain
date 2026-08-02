@@ -4,17 +4,65 @@ import {
   makeTransportQuery,
   OVERPASS_FALLBACK_PROVIDER_URL,
   OVERPASS_PROVIDER_URL,
+  OVERPASS_USER_AGENT,
 } from "./overpass";
 import { createRequestTimeout } from "./requestTimeout";
 
-const OVERPASS_PROXY_TIMEOUT_MILLISECONDS = 30_000;
+const OVERPASS_ATTEMPT_TIMEOUT_MILLISECONDS = 30_000;
+const TRANSPORT_REQUEST_LIMIT = 10;
+const TRANSPORT_RATE_WINDOW_MILLISECONDS = 1_000;
 
-const jsonError = (reason: string, status: number): Response =>
+interface TransportRequestPermit {
+  release: () => void;
+}
+
+export interface TransportRequestLimiter {
+  acquire: (nowMilliseconds?: number) => TransportRequestPermit | null;
+}
+
+export const createTransportRequestLimiter = (): TransportRequestLimiter => {
+  let activeRequests = 0;
+  let recentStarts: number[] = [];
+  return {
+    acquire: (nowMilliseconds = Date.now()) => {
+      recentStarts = recentStarts.filter(
+        (started) =>
+          started <= nowMilliseconds &&
+          started > nowMilliseconds - TRANSPORT_RATE_WINDOW_MILLISECONDS,
+      );
+      if (
+        activeRequests >= TRANSPORT_REQUEST_LIMIT ||
+        recentStarts.length >= TRANSPORT_REQUEST_LIMIT
+      ) {
+        return null;
+      }
+      activeRequests += 1;
+      recentStarts.push(nowMilliseconds);
+      let released = false;
+      return {
+        release: () => {
+          if (!released) {
+            released = true;
+            activeRequests -= 1;
+          }
+        },
+      };
+    },
+  };
+};
+
+const requestLimiter = createTransportRequestLimiter();
+
+const jsonError = (
+  reason: string,
+  status: number,
+  extraHeaders: HeadersInit = {},
+): Response =>
   Response.json(
     { reason },
     {
       status,
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "no-store", ...extraHeaders },
     },
   );
 
@@ -32,9 +80,43 @@ const readLocation = (request: Request): GeoPoint | null => {
   return isValidGeoPoint(location) ? location : null;
 };
 
+const fetchProvider = async (
+  providerUrl: string,
+  body: string,
+  fetchFunction: FetchFunction,
+): Promise<Response> => {
+  const timeout = createRequestTimeout(OVERPASS_ATTEMPT_TIMEOUT_MILLISECONDS);
+  try {
+    return await fetchFunction(providerUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": OVERPASS_USER_AGENT,
+      },
+      body,
+      signal: timeout.signal,
+    });
+  } finally {
+    timeout.clear();
+  }
+};
+
+const releaseResponse = async (response: Response): Promise<void> => {
+  if (!response.body || response.bodyUsed) {
+    return;
+  }
+  try {
+    await response.body.cancel();
+  } catch {
+    // A failed discard must not prevent the fallback request.
+  }
+};
+
 export const handleTransportRequest = async (
   request: Request,
   fetchFunction: FetchFunction = fetch,
+  limiter: TransportRequestLimiter = requestLimiter,
 ): Promise<Response> => {
   if (request.method !== "GET") {
     return jsonError("Method not allowed.", 405);
@@ -44,19 +126,29 @@ export const handleTransportRequest = async (
     return jsonError("Latitude or longitude is invalid.", 400);
   }
 
-  const timeout = createRequestTimeout(OVERPASS_PROXY_TIMEOUT_MILLISECONDS);
+  const permit = limiter.acquire();
+  if (!permit) {
+    return jsonError("Transport request limit reached. Retry shortly.", 429, {
+      "Retry-After": "1",
+    });
+  }
+
   try {
-    const requestInit: RequestInit = {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `data=${encodeURIComponent(makeTransportQuery(location))}`,
-      signal: timeout.signal,
-    };
-    const primary = await fetchFunction(OVERPASS_PROVIDER_URL, requestInit);
-    const response =
-      primary.ok || primary.status < 500
-        ? primary
-        : await fetchFunction(OVERPASS_FALLBACK_PROVIDER_URL, requestInit);
+    const body = `data=${encodeURIComponent(makeTransportQuery(location))}`;
+    const primary = await fetchProvider(
+      OVERPASS_PROVIDER_URL,
+      body,
+      fetchFunction,
+    );
+    let response = primary;
+    if (!primary.ok && primary.status >= 500) {
+      await releaseResponse(primary);
+      response = await fetchProvider(
+        OVERPASS_FALLBACK_PROVIDER_URL,
+        body,
+        fetchFunction,
+      );
+    }
     return new Response(response.body, {
       status: response.status,
       headers: {
@@ -71,6 +163,6 @@ export const handleTransportRequest = async (
       timedOut ? 504 : 502,
     );
   } finally {
-    timeout.clear();
+    permit.release();
   }
 };
