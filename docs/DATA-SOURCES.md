@@ -37,15 +37,21 @@ less precise between widely spaced path-table points or outside the stored regio
 - Underlying terrain: Copernicus DEM, with acknowledgement and citation guidance
   on the Open-Meteo page.
 
-The app requests observer elevation plus 15 samples along the Sun azimuth at the
-user-selected available contact phase, from 250 m to 50 km. It converts terrain
-height relative to the observer into an apparent angle and includes geometric
-Earth-curvature drop. The display lists each sample's distance, terrain elevation,
-and apparent angle.
+For a selected location, the app requests observer elevation plus seven outward
+distance samples for each of 13 azimuths across an 80° view centred on the Sun at
+maximum. It converts terrain height relative to the observer into apparent angle,
+includes geometric Earth-curvature drop, and uses the highest angle on each ray
+as the terrain silhouette. The request stays within Open-Meteo's published
+100-coordinate batch limit.
 
-The profile does not model atmospheric refraction, local survey detail, trees,
+Astronomy Engine calculates topocentric Sun and Moon azimuth/altitude throughout
+C1–C4. The observer-sky display provides time scrubbing, contact jumps, and
+accelerated playback. Body discs are enlarged for legibility; their displayed
+size is not an angular scale reference.
+
+The skyline does not model atmospheric refraction, local survey detail, trees,
 buildings, temporary structures, or haze. It intentionally has no fixed 2°
-pass/fail rule and no C3+60 rule. The displayed Sun-to-sampled-terrain clearance
+pass/fail rule and no C3+60 rule. The live Sun-to-sampled-terrain clearance
 is explanatory, not a guarantee of visibility.
 
 ## Cloud
@@ -60,17 +66,23 @@ shows “Forecast not available yet”. No historical climate substitute is used
 Cloud forecasts can change materially and model cloud layers are not direct proof
 of whether the Sun will be visible. Recheck several models close to the event.
 
-## Map and transport
+## Map and candidate location discovery
 
 - Map/data licence and attribution: [OpenStreetMap](https://www.openstreetmap.org/copyright)
 - Query service: [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
 - Standard map tiles: `tile.openstreetmap.org`
 
-The app queries a 25 km radius and shows the closest separately classified rail,
-bus, airport, ferry, and parking object. Deployed browsers call the same-origin
+The app queries a 25 km radius around a rough search point and uses the closest
+separately classified rail, bus, airport, ferry, and parking objects as candidate
+anchors. It evaluates eclipse kind, terrain clearance, centre-line distance, and
+distance from the rough search point, then exposes those score components. There
+is no standalone post-selection transport card. Deployed browsers call the same-origin
 `/api/transport` Vercel Function; it validates coordinates, creates this fixed
-query, and forwards it to Overpass to avoid direct-browser CORS failure. Distance
-is straight-line. OpenStreetMap can be incomplete or stale; the query does not
+query, and forwards it to a listed public Overpass instance to avoid
+direct-browser CORS failure. An immediate server error is retried once against
+the OpenStreetMap Wiki's listed private.coffee instance. Distance
+is straight-line. OpenStreetMap can be incomplete or stale; candidates are not
+verified observing sites, and the query does not
 verify timetables, legal access, capacity, road conditions, or operation on
 eclipse day.
 

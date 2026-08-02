@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { getEclipseEvent } from "../data/eclipseEvents";
-import { calculateLocalEclipse, calculateSolarObscuration } from "./eclipse";
+import {
+  calculateLocalEclipse,
+  calculateObserverSky,
+  calculateSolarObscuration,
+} from "./eclipse";
 
 const centralLocations = [
   {
@@ -105,5 +109,29 @@ describe("local eclipse calculations", () => {
         Number.NaN,
       ),
     ).toBe(0);
+  });
+
+  it("calculates live Sun and Moon positions for the observer sky", () => {
+    const location = { latitude: 41.8167, longitude: -3.185 };
+    const eclipse = calculateLocalEclipse(
+      getEclipseEvent("spain-2026"),
+      location,
+    );
+    expect(eclipse.status).toBe("success");
+    if (eclipse.status !== "success" || !eclipse.value.contacts.maximum) {
+      return;
+    }
+
+    const sky = calculateObserverSky(
+      location,
+      new Date(eclipse.value.contacts.maximum.utc),
+    );
+
+    expect(sky).not.toBeNull();
+    expect(sky?.obscuration).toBeCloseTo(1, 6);
+    expect(sky?.sun.altitudeDegrees).toBeGreaterThan(0);
+    expect(
+      Math.abs((sky?.sun.azimuthDegrees ?? 0) - (sky?.moon.azimuthDegrees ?? 0)),
+    ).toBeLessThan(1);
   });
 });

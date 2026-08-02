@@ -3,7 +3,6 @@ import { useCallback, useRef, useState } from "react";
 import type { EclipseEventDefinition } from "../../data/eclipseEvents";
 import {
   calculateLocalEclipse,
-  type ContactId,
   type EclipseCalculationResult,
 } from "../../domain/eclipse";
 import type { GeoPoint } from "../../domain/geo";
@@ -88,11 +87,7 @@ export const useLocationAnalysis = (
   );
 
   const analyze = useCallback(
-    async (
-      event: EclipseEventDefinition,
-      location: GeoPoint,
-      horizonPhaseId: ContactId,
-    ) => {
+    async (event: EclipseEventDefinition, location: GeoPoint) => {
       const currentRequest = requestNumber.current + 1;
       requestNumber.current = currentRequest;
       const currentElevationRequest = elevationRequestNumber.current + 1;
@@ -122,13 +117,10 @@ export const useLocationAnalysis = (
         });
         return;
       }
-      const horizonContact =
-        initialEclipse.value.contacts[horizonPhaseId] ?? maximum;
-
       const elevationRequest = requestElevation(
         event,
         location,
-        horizonContact.sunAzimuthDegrees,
+        maximum.sunAzimuthDegrees,
         currentRequest,
         currentElevationRequest,
       );
@@ -147,38 +139,5 @@ export const useLocationAnalysis = (
     [requestElevation],
   );
 
-  const analyzeHorizon = useCallback(
-    async (
-      event: EclipseEventDefinition,
-      location: GeoPoint,
-      horizonPhaseId: ContactId,
-    ) => {
-      const eclipse = calculateLocalEclipse(event, location);
-      if (eclipse.status !== "success") {
-        return;
-      }
-      const maximum = eclipse.value.contacts.maximum;
-      if (!maximum) {
-        return;
-      }
-      const horizonContact = eclipse.value.contacts[horizonPhaseId] ?? maximum;
-      const currentRequest = requestNumber.current;
-      const currentElevationRequest = elevationRequestNumber.current + 1;
-      elevationRequestNumber.current = currentElevationRequest;
-      setAnalysis((current) => ({
-        ...current,
-        elevation: { state: "loading" },
-      }));
-      await requestElevation(
-        event,
-        location,
-        horizonContact.sunAzimuthDegrees,
-        currentRequest,
-        currentElevationRequest,
-      );
-    },
-    [requestElevation],
-  );
-
-  return { analysis, analyze, analyzeHorizon, reset };
+  return { analysis, analyze, reset };
 };

@@ -1,14 +1,14 @@
 # Eclipse Observer
 
-Mobile-first Expo TypeScript web app for choosing an eclipse observation point,
-checking the terrain horizon and nearby infrastructure, and running an editable
-spoken countdown.
+Mobile-first Expo TypeScript web app for finding an eclipse observation point,
+comparing transport-anchored candidates, simulating the live terrain horizon,
+and running an editable spoken countdown.
 
 The browser app exports as a static single-page app for Vercel, with one Vercel
-Function for same-origin transport queries. The current
-[partial deployment](https://eclipse-spain-ten.vercel.app) predates the
-`mvp-plan-complete` work and must be redeployed and rechecked. It intentionally
-has no public product version yet.
+Function for same-origin candidate queries. The current
+[deployment](https://eclipse-spain-ten.vercel.app) is the pre-location-finder,
+pre-live-horizon baseline until this branch is deployed and rechecked. It
+intentionally has no public product version yet.
 
 ## Supported eclipses
 
@@ -21,15 +21,18 @@ NASA sources, and centre-line points live in `src/data/eclipseEvents.ts`.
 
 ## MVP features
 
-- Tappable OpenStreetMap map, coordinate entry, and browser geolocation.
+- Tappable OpenStreetMap map, coordinate entry, and browser geolocation for a
+  rough search area.
+- Ranked observing-location candidates anchored to nearby rail, bus, airport,
+  ferry, or parking infrastructure. Ranking exposes eclipse, terrain,
+  centre-line, and search-proximity components.
 - C1, C2, maximum, C3, and C4 in UTC and the device's local time.
 - Local eclipse type, magnitude, obscuration, totality duration, Sun altitude,
   Sun azimuth, and distance to a NASA-derived centre line.
-- Observer elevation and a selectable C1/C2/maximum/C3/C4 terrain-horizon
-  profile, with distance, elevation, and apparent-angle samples out to 50 km.
+- Observer elevation and an animated observer-sky view with a sampled terrain
+  silhouette, real Sun/Moon positions, C1–C4 time scrubbing, contact jumps, and
+  60×/300×/600× playback.
 - Cloud forecast with explicit out-of-range and failure states.
-- Nearest rail, bus, airport, ferry, and parking objects from OpenStreetMap,
-  queried through a same-origin Vercel Function in deployments.
 - Editable, removable, persistent audio markers anchored to eclipse contacts.
 - Marker offsets in seconds or signed `m:ss`, with speech or tone flags.
 - Live display of time to the next marker or current Sun obscuration.
@@ -49,8 +52,8 @@ pnpm web
 
 The app is web-only. There are no iOS or Android build targets.
 
-`pnpm web` calls Overpass directly for local development. Vercel deployments use
-`/api/transport` to avoid the CORS failure observed on the partial deployment.
+Candidate finding calls Overpass directly in local development. Vercel
+deployments use `/api/transport` to avoid browser CORS failures.
 To exercise the same-origin Function locally, use
 `EXPO_PUBLIC_TRANSPORT_PROXY=1 pnpm dlx vercel dev`; the runtime signal makes the
 localhost browser call `/api/transport` while Vercel serves the Function.
@@ -83,7 +86,7 @@ See [manual browser checks](docs/MANUAL-TESTING.md) before a public deployment.
 - frozen `pnpm` install;
 - `pnpm build:web` build command;
 - `dist` output directory;
-- an `/api/transport` function that creates the fixed Overpass query;
+- an `/api/transport` function that supplies candidate transport anchors;
 - history fallback to the SPA root.
 
 Connect the repository in Vercel, or deploy from a machine with Vercel access.
@@ -93,15 +96,17 @@ being treated as operational.
 
 ## Important field limitations
 
-- The horizon is a terrain display, not a visibility guarantee. Trees,
+- Candidate anchors are not verified observing sites. Check access, land
+  permission, safety, and local conditions.
+- The horizon is a terrain simulation, not a visibility guarantee. Trees,
   buildings, haze, cloud, temporary structures, and fine terrain may be absent.
 - There is no fixed 2° visibility verdict and no special C3+60 rule.
 - Browser speech and timers are not reliable after a tab is hidden, suspended,
   the device is locked, or the browser is closed. Keep the page open and awake.
 - Cloud is only shown inside the weather provider's forecast range. It is not
   silently replaced by climatology.
-- Transport distances are straight-line proximity, not journey planning or
-  proof that a service or access route exists.
+- Candidate search distances are straight-line, not journey planning or proof
+  that a service or access route exists.
 - Eclipse safety remains the observer's responsibility. Use certified eclipse
   viewing equipment outside totality.
 
@@ -112,7 +117,7 @@ Implementation boundaries are in [architecture](docs/ARCHITECTURE.md).
 
 ```text
 App.tsx                         mobile-first workspace
-api/transport.ts                fixed-query Vercel transport proxy
+api/transport.ts                fixed candidate-anchor query proxy
 src/components/                presentation and charts
 src/data/                      supported eclipse definitions
 src/domain/                    pure eclipse, geodesy, horizon, audio logic

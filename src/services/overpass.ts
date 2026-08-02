@@ -3,6 +3,8 @@ import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
 
 export const OVERPASS_PROVIDER_URL = "https://overpass-api.de/api/interpreter";
+export const OVERPASS_FALLBACK_PROVIDER_URL =
+  "https://overpass.private.coffee/api/interpreter";
 export const OVERPASS_URL = OVERPASS_PROVIDER_URL;
 export const TRANSPORT_API_PATH = "/api/transport";
 export const OPENSTREETMAP_SOURCE_URL = "https://www.openstreetmap.org/copyright";

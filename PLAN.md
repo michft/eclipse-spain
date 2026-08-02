@@ -12,7 +12,6 @@ The app combines:
 - candidate selection on an OpenStreetMap map;
 - eclipse circumstances for the exact point;
 - distance to the eclipse centre line;
-- nearby transport infrastructure;
 - site elevation and an animated observer-sky terrain-horizon simulation;
 - cloud forecast when the event enters forecast range;
 - a user-editable spoken audio timeline;
@@ -229,7 +228,7 @@ Implementation rules:
 | Map | OpenStreetMap-compatible tiles with visible attribution |
 | Candidate transport access | OpenStreetMap via Overpass API through a same-origin Vercel Function |
 
-Card 07 is the intentional source and comparison hub for the results in Cards 01–06. Derived results identify their method inline where useful. Store source URLs with event or service configuration instead of scattering them through components.
+Card 06 is the intentional source and comparison hub for the results in Cards 01–05. Derived results identify their method inline where useful. Store source URLs with event or service configuration instead of scattering them through components.
 
 ## Repository shape
 
@@ -260,8 +259,8 @@ Each piece gets focused validation, a meaningful JJ description, and its own boo
 5. `mobile-ui` — OSM map, analysis workspace, source links, QR sharing.
 6. `audio-timeline` — editable markers, persistence, speech/tone scheduling, tests.
 7. `vercel-ready` — production export, Vercel config, documentation, final checks.
-8. `mvp-plan-complete` — phase-selectable horizon details, complete warnings and
-   sources, production transport proxy, and plan-to-code reconciliation.
+8. `mvp-plan-complete` — the superseded phase-profile implementation, warnings,
+   sources, and first production transport proxy.
 9. `location-finder` — ranked transport/horizon/centre-line candidate discovery.
 10. `live-horizon` — animated observer-sky terrain and eclipse simulation.
 

@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +15,7 @@ import {
 import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
 import { Card } from "./src/components/Card";
-import { HorizonChart } from "./src/components/HorizonChart";
+import { HorizonSimulator } from "./src/components/HorizonSimulator";
 import { LocationFinderPanel } from "./src/components/LocationFinderPanel";
 import { MapPanel } from "./src/components/MapPanel";
 import {
@@ -26,7 +26,6 @@ import {
 } from "./src/data/eclipseEvents";
 import {
   CONTACT_IDS,
-  type ContactId,
   type EclipseContact,
 } from "./src/domain/eclipse";
 import { isValidGeoPoint, type GeoPoint } from "./src/domain/geo";
@@ -157,30 +156,15 @@ export default function App() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
-  const [horizonPhaseId, setHorizonPhaseId] =
-    useState<ContactId>("maximum");
-  const { analysis, analyze, analyzeHorizon } = useLocationAnalysis(
+  const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
   );
   const { finder, find: findLocations, reset: resetFinder } = useLocationFinder();
-  const previousAnalysisSelection = useRef<{
-    locationKey: string;
-    phaseId: ContactId;
-  } | null>(null);
 
   useEffect(() => {
-    const locationKey = `${selectedEvent.id}:${location.latitude}:${location.longitude}`;
-    const previous = previousAnalysisSelection.current;
-    previousAnalysisSelection.current = { locationKey, phaseId: horizonPhaseId };
-    if (previous?.locationKey === locationKey) {
-      if (previous.phaseId !== horizonPhaseId) {
-        void analyzeHorizon(selectedEvent, location, horizonPhaseId);
-      }
-      return;
-    }
-    void analyze(selectedEvent, location, horizonPhaseId);
-  }, [analyze, analyzeHorizon, horizonPhaseId, location, selectedEvent]);
+    void analyze(selectedEvent, location);
+  }, [analyze, location, selectedEvent]);
 
   useEffect(() => {
     let active = true;
@@ -219,7 +203,6 @@ export default function App() {
 
   const selectEvent = (nextEventId: EclipseEventId): void => {
     const nextEvent = getEclipseEvent(nextEventId);
-    setHorizonPhaseId("maximum");
     setEventId(nextEventId);
     selectLocation(defaultLocation(nextEvent));
   };
@@ -241,7 +224,7 @@ export default function App() {
       nextLocation.latitude === location.latitude &&
       nextLocation.longitude === location.longitude
     ) {
-      void analyze(selectedEvent, location, horizonPhaseId);
+      void analyze(selectedEvent, location);
       return;
     }
     selectLocation(nextLocation);
@@ -260,12 +243,6 @@ export default function App() {
 
   const eclipse =
     analysis.eclipse.status === "success" ? analysis.eclipse.value : null;
-  const maximum = eclipse?.contacts.maximum ?? null;
-  const horizonContact = eclipse?.contacts[horizonPhaseId] ?? maximum;
-  const horizonPhaseLabel =
-    horizonContact?.id === "maximum"
-      ? "maximum"
-      : horizonContact?.id.toUpperCase() ?? "selected phase";
   const elevation =
     analysis.elevation.state === "result" &&
     analysis.elevation.result.status === "success"
@@ -275,11 +252,6 @@ export default function App() {
     analysis.cloud.state === "result" &&
     analysis.cloud.result.status === "success"
       ? analysis.cloud.result.value
-      : null;
-  const sampledClearance =
-    horizonContact && elevation
-      ? horizonContact.sunAltitudeDegrees -
-        elevation.horizon.highestTerrainAngleDegrees
       : null;
 
   return (
@@ -292,11 +264,12 @@ export default function App() {
             Eclipse Observer
           </Text>
           <Text style={styles.lede}>
-            Pick a point, inspect its terrain horizon, and prepare for totality.
+            Choose a search area, compare observing candidates, and simulate the
+            eclipse over their terrain horizon.
           </Text>
         </View>
 
-        <Card eyebrow="01" title="Event and location">
+        <Card eyebrow="01" title="Find a location">
           <Text style={styles.fieldLabel}>Eclipse</Text>
           <View style={styles.eventOptions}>
             {ECLIPSE_EVENTS.map((event) => (
@@ -361,7 +334,8 @@ export default function App() {
             />
           </View>
           <Text style={styles.smallMuted}>
-            Tap the map to analyse a point. Gold line: NASA-derived centre line.
+            Tap the map to set the rough search centre. Gold line: NASA-derived
+            centre line.
           </Text>
           <LocationFinderPanel
             finder={finder}
@@ -412,31 +386,12 @@ export default function App() {
           ) : null}
         </Card>
 
-        <Card eyebrow="03" title="Elevation and terrain horizon">
+        <Card eyebrow="03" title="Live observer sky and terrain horizon">
           <RemoteMessage
             data={analysis.elevation}
             idle="Choose a valid eclipse location to load elevation."
           />
-          {horizonContact ? (
-            <>
-              <Text style={styles.fieldLabel}>Horizon direction at eclipse phase</Text>
-              <View style={styles.actions}>
-                {CONTACT_IDS.map((contactId) => {
-                  const contact = eclipse?.contacts[contactId];
-                  return contact ? (
-                    <ActionButton
-                      key={contactId}
-                      onPress={() => setHorizonPhaseId(contactId)}
-                      secondary={horizonContact.id !== contactId}
-                    >
-                      {contactId.toUpperCase()}
-                    </ActionButton>
-                  ) : null;
-                })}
-              </View>
-            </>
-          ) : null}
-          {elevation && horizonContact ? (
+          {elevation && eclipse ? (
             <>
               <View style={styles.metrics}>
                 <Metric
@@ -444,31 +399,24 @@ export default function App() {
                   value={`${Math.round(elevation.observerElevationMeters)} m`}
                 />
                 <Metric
-                  label={`Sun at ${horizonPhaseLabel}`}
-                  value={`${horizonContact.sunAltitudeDegrees.toFixed(1)}°`}
+                  label="Terrain field of view"
+                  value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
                 />
                 <Metric
-                  label="Highest sampled terrain"
-                  value={`${elevation.horizon.highestTerrainAngleDegrees.toFixed(1)}°`}
-                />
-                <Metric
-                  label="Sampled terrain clearance"
-                  value={sampledClearance === null ? "—" : `${sampledClearance.toFixed(1)}°`}
+                  label="Azimuth samples"
+                  value={String(elevation.skyline.samples.length)}
                 />
               </View>
-              <HorizonChart
-                phaseLabel={horizonPhaseLabel}
-                profile={elevation.horizon}
-                sunAltitudeDegrees={horizonContact.sunAltitudeDegrees}
+              <HorizonSimulator
+                contacts={eclipse.contacts}
+                elevation={elevation}
+                location={location}
               />
               <Text style={styles.footnote}>
-                Profile follows the Sun azimuth at {horizonPhaseLabel} ({
-                  horizonContact.sunAzimuthDegrees.toFixed(1)
-                }°) out to 50 km. Elevation retrieved {formatUtc(
+                Terrain skyline is centred on the Sun at maximum and sampled out
+                to 20 km. Elevation retrieved {formatUtc(
                   elevation.retrievedUtc,
-                )}. Terrain data does not reliably include trees, buildings, haze,
-                cloud, or temporary obstructions. Clearance is a comparison, not a
-                guarantee.
+                )}. This is a terrain simulation, not a visibility guarantee.
               </Text>
             </>
           ) : null}

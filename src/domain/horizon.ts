@@ -20,6 +20,18 @@ export interface HorizonProfile {
   highestTerrainAngleDegrees: number;
 }
 
+export interface TerrainSkylineSample {
+  azimuthDegrees: number;
+  azimuthOffsetDegrees: number;
+  terrainAngleDegrees: number;
+}
+
+export interface TerrainSkyline {
+  centerAzimuthDegrees: number;
+  fieldOfViewDegrees: number;
+  samples: readonly TerrainSkylineSample[];
+}
+
 export const makeHorizonProfile = (
   observerElevationMeters: number,
   azimuthDegrees: number,

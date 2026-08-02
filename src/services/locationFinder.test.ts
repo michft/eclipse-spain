@@ -59,6 +59,11 @@ describe("observing location finder", () => {
             samples: [],
             highestTerrainAngleDegrees: 0,
           },
+          skyline: {
+            centerAzimuthDegrees: 280,
+            fieldOfViewDegrees: 80,
+            samples: [],
+          },
           sourceUrl: "https://open-meteo.com/en/docs/elevation-api",
           retrievedUtc: "2026-08-02T00:00:00.000Z",
         },
