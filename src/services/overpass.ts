@@ -2,7 +2,9 @@ import { distanceKm, type GeoPoint } from "../domain/geo";
 import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
 
-export const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+export const OVERPASS_PROVIDER_URL = "https://overpass-api.de/api/interpreter";
+export const OVERPASS_URL = OVERPASS_PROVIDER_URL;
+export const TRANSPORT_API_PATH = "/api/transport";
 export const OPENSTREETMAP_SOURCE_URL = "https://www.openstreetmap.org/copyright";
 export const TRANSPORT_RADIUS_KM = 25;
 const OVERPASS_TIMEOUT_MILLISECONDS = 30_000;
@@ -163,7 +165,7 @@ const emptyNearest = (): Record<TransportMode, NearbyTransport | null> => ({
   parking: null,
 });
 
-const makeQuery = (location: GeoPoint): string => {
+export const makeTransportQuery = (location: GeoPoint): string => {
   const around = `around:${TRANSPORT_RADIUS_KM * 1000},${location.latitude},${location.longitude}`;
   return `[out:json][timeout:25];(
     nwr(${around})["railway"~"^(station|halt)$"];
@@ -175,6 +177,43 @@ const makeQuery = (location: GeoPoint): string => {
   );out center tags;`;
 };
 
+interface TransportRequest {
+  input: string;
+  init: RequestInit;
+}
+
+const localHostnames = new Set(["localhost", "127.0.0.1", "::1"]);
+
+export const makeTransportRequest = (
+  location: GeoPoint,
+  signal: AbortSignal,
+  hostname: string | null =
+    typeof window === "undefined" ? null : window.location.hostname,
+  localProxyEnabled: boolean =
+    typeof process !== "undefined" &&
+    process.env.EXPO_PUBLIC_TRANSPORT_PROXY === "1",
+): TransportRequest => {
+  if (
+    hostname !== null &&
+    (localProxyEnabled || !localHostnames.has(hostname))
+  ) {
+    const query = new URLSearchParams({
+      latitude: String(location.latitude),
+      longitude: String(location.longitude),
+    });
+    return { input: `${TRANSPORT_API_PATH}?${query}`, init: { signal } };
+  }
+  return {
+    input: OVERPASS_PROVIDER_URL,
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(makeTransportQuery(location))}`,
+      signal,
+    },
+  };
+};
+
 export const fetchTransportProximity = async (
   location: GeoPoint,
   fetchFunction: FetchFunction = fetch,
@@ -182,12 +221,8 @@ export const fetchTransportProximity = async (
 ): Promise<ServiceResult<TransportProximity>> => {
   const timeout = createRequestTimeout(OVERPASS_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(OVERPASS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `data=${encodeURIComponent(makeQuery(location))}`,
-      signal: timeout.signal,
-    });
+    const request = makeTransportRequest(location, timeout.signal);
+    const response = await fetchFunction(request.input, request.init);
     if (!response.ok) {
       return {
         status: "error",

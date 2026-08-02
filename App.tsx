@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -23,7 +23,11 @@ import {
   type EclipseEventDefinition,
   type EclipseEventId,
 } from "./src/data/eclipseEvents";
-import { CONTACT_IDS, type EclipseContact } from "./src/domain/eclipse";
+import {
+  CONTACT_IDS,
+  type ContactId,
+  type EclipseContact,
+} from "./src/domain/eclipse";
 import { isValidGeoPoint, type GeoPoint } from "./src/domain/geo";
 import {
   type RemoteData,
@@ -162,11 +166,29 @@ export default function App() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
-  const { analysis, analyze } = useLocationAnalysis(selectedEvent, location);
+  const [horizonPhaseId, setHorizonPhaseId] =
+    useState<ContactId>("maximum");
+  const { analysis, analyze, analyzeHorizon } = useLocationAnalysis(
+    selectedEvent,
+    location,
+  );
+  const previousAnalysisSelection = useRef<{
+    locationKey: string;
+    phaseId: ContactId;
+  } | null>(null);
 
   useEffect(() => {
-    void analyze(selectedEvent, location);
-  }, [analyze, location, selectedEvent]);
+    const locationKey = `${selectedEvent.id}:${location.latitude}:${location.longitude}`;
+    const previous = previousAnalysisSelection.current;
+    previousAnalysisSelection.current = { locationKey, phaseId: horizonPhaseId };
+    if (previous?.locationKey === locationKey) {
+      if (previous.phaseId !== horizonPhaseId) {
+        void analyzeHorizon(selectedEvent, location, horizonPhaseId);
+      }
+      return;
+    }
+    void analyze(selectedEvent, location, horizonPhaseId);
+  }, [analyze, analyzeHorizon, horizonPhaseId, location, selectedEvent]);
 
   useEffect(() => {
     let active = true;
@@ -199,6 +221,7 @@ export default function App() {
 
   const selectEvent = (nextEventId: EclipseEventId): void => {
     const nextEvent = getEclipseEvent(nextEventId);
+    setHorizonPhaseId("maximum");
     setEventId(nextEventId);
     selectLocation(defaultLocation(nextEvent));
   };
@@ -220,7 +243,7 @@ export default function App() {
       nextLocation.latitude === location.latitude &&
       nextLocation.longitude === location.longitude
     ) {
-      void analyze(selectedEvent, location);
+      void analyze(selectedEvent, location, horizonPhaseId);
       return;
     }
     selectLocation(nextLocation);
@@ -240,6 +263,11 @@ export default function App() {
   const eclipse =
     analysis.eclipse.status === "success" ? analysis.eclipse.value : null;
   const maximum = eclipse?.contacts.maximum ?? null;
+  const horizonContact = eclipse?.contacts[horizonPhaseId] ?? maximum;
+  const horizonPhaseLabel =
+    horizonContact?.id === "maximum"
+      ? "maximum"
+      : horizonContact?.id.toUpperCase() ?? "selected phase";
   const elevation =
     analysis.elevation.state === "result" &&
     analysis.elevation.result.status === "success"
@@ -256,8 +284,9 @@ export default function App() {
       ? analysis.transport.result.value
       : null;
   const sampledClearance =
-    maximum && elevation
-      ? maximum.sunAltitudeDegrees - elevation.horizon.highestTerrainAngleDegrees
+    horizonContact && elevation
+      ? horizonContact.sunAltitudeDegrees -
+        elevation.horizon.highestTerrainAngleDegrees
       : null;
 
   return (
@@ -383,7 +412,26 @@ export default function App() {
             data={analysis.elevation}
             idle="Choose a valid eclipse location to load elevation."
           />
-          {elevation && maximum ? (
+          {horizonContact ? (
+            <>
+              <Text style={styles.fieldLabel}>Horizon direction at eclipse phase</Text>
+              <View style={styles.actions}>
+                {CONTACT_IDS.map((contactId) => {
+                  const contact = eclipse?.contacts[contactId];
+                  return contact ? (
+                    <ActionButton
+                      key={contactId}
+                      onPress={() => setHorizonPhaseId(contactId)}
+                      secondary={horizonContact.id !== contactId}
+                    >
+                      {contactId.toUpperCase()}
+                    </ActionButton>
+                  ) : null;
+                })}
+              </View>
+            </>
+          ) : null}
+          {elevation && horizonContact ? (
             <>
               <View style={styles.metrics}>
                 <Metric
@@ -391,8 +439,8 @@ export default function App() {
                   value={`${Math.round(elevation.observerElevationMeters)} m`}
                 />
                 <Metric
-                  label="Sun at maximum"
-                  value={`${maximum.sunAltitudeDegrees.toFixed(1)}°`}
+                  label={`Sun at ${horizonPhaseLabel}`}
+                  value={`${horizonContact.sunAltitudeDegrees.toFixed(1)}°`}
                 />
                 <Metric
                   label="Highest sampled terrain"
@@ -404,13 +452,18 @@ export default function App() {
                 />
               </View>
               <HorizonChart
+                phaseLabel={horizonPhaseLabel}
                 profile={elevation.horizon}
-                sunAltitudeDegrees={maximum.sunAltitudeDegrees}
+                sunAltitudeDegrees={horizonContact.sunAltitudeDegrees}
               />
               <Text style={styles.footnote}>
-                Profile follows the Sun azimuth at maximum out to 50 km. Elevation
-                data does not reliably include trees, buildings, haze, cloud, or
-                temporary obstructions. Clearance is a comparison, not a guarantee.
+                Profile follows the Sun azimuth at {horizonPhaseLabel} ({
+                  horizonContact.sunAzimuthDegrees.toFixed(1)
+                }°) out to 50 km. Elevation retrieved {formatUtc(
+                  elevation.retrievedUtc,
+                )}. Terrain data does not reliably include trees, buildings, haze,
+                cloud, or temporary obstructions. Clearance is a comparison, not a
+                guarantee.
               </Text>
             </>
           ) : null}
@@ -543,6 +596,11 @@ const TransportDetails = ({
   transport: TransportProximity;
 }) => (
   <View style={styles.rows}>
+    <Text style={styles.smallMuted}>
+      Query radius {transport.radiusKm} km · retrieved {formatUtc(
+        transport.retrievedUtc,
+      )}
+    </Text>
     {Object.entries(transport.nearest).map(([mode, item]) => (
       <View key={mode} style={styles.transportRow}>
         <Text style={styles.rowTitle}>

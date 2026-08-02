@@ -2,6 +2,11 @@ export type AudioCueMode = "speech" | "tone";
 
 let sharedAudioContext: AudioContext | null = null;
 
+export const isSpeechSynthesisAvailable = (): boolean =>
+  typeof window !== "undefined" &&
+  "speechSynthesis" in window &&
+  typeof SpeechSynthesisUtterance !== "undefined";
+
 const getAudioContext = (): AudioContext => {
   if (typeof window === "undefined" || !("AudioContext" in window)) {
     throw new Error("Browser audio is unavailable.");
@@ -41,9 +46,7 @@ export const playAudioCue = async (
 ): Promise<AudioCueMode> => {
   if (
     spoken &&
-    typeof window !== "undefined" &&
-    "speechSynthesis" in window &&
-    typeof SpeechSynthesisUtterance !== "undefined"
+    isSpeechSynthesisAvailable()
   ) {
     const utterance = new SpeechSynthesisUtterance(label);
     utterance.rate = 0.95;

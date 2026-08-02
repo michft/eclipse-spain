@@ -8,12 +8,17 @@ import {
   type AudioMarker,
   type ContactRecord,
 } from "../../domain/audioTimeline";
-import { playAudioCue, primeAudio } from "../../services/audio";
+import {
+  isSpeechSynthesisAvailable,
+  playAudioCue,
+  primeAudio,
+} from "../../services/audio";
 import {
   loadAudioMarkers,
   makeAudioMarkerId,
   saveAudioMarkers,
 } from "../../services/audioStorage";
+import { checkDeviceClock } from "../../services/clock";
 import {
   isPageHidden,
   subscribeToPageVisibility,
@@ -30,13 +35,16 @@ const monotonicNow = (): number =>
 const currentUtcFromBaseline = (baseline: ClockBaseline): number =>
   baseline.utcMilliseconds + monotonicNow() - baseline.monotonicMilliseconds;
 
+const CLOCK_JUMP_WARNING_MILLISECONDS = 2_000;
+
 export const useAudioTimeline = (contacts: ContactRecord) => {
   const [markers, setMarkers] = useState<AudioMarker[]>(loadAudioMarkers);
   const [armed, setArmed] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [pageWasHidden, setPageWasHidden] = useState(isPageHidden);
+  const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [message, setMessage] = useState(
-    "Test audio, then arm the timeline while keeping this page open.",
+    "Test speech or tone, then arm the timeline while keeping this page open.",
   );
   const clockBaseline = useRef<ClockBaseline>({
     monotonicMilliseconds: monotonicNow(),
@@ -44,6 +52,8 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   });
   const previousTick = useRef(clockBaseline.current.utcMilliseconds);
   const firedIds = useRef(new Set<string>());
+  const clockCheckSequence = useRef(0);
+  const speechAvailable = isSpeechSynthesisAvailable();
   const resolvedMarkers = useMemo(
     () => resolveAudioMarkers(markers, contacts),
     [contacts, markers],
@@ -53,6 +63,20 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   useEffect(() => {
     saveAudioMarkers(markers);
   }, [markers]);
+
+  useEffect(() => {
+    let active = true;
+    const sequence = clockCheckSequence.current + 1;
+    clockCheckSequence.current = sequence;
+    void checkDeviceClock().then((result) => {
+      if (active && clockCheckSequence.current === sequence) {
+        setClockWarning(result.status === "warning" ? result.reason : null);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(
     () =>
@@ -68,6 +92,13 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
         };
         previousTick.current = utcMilliseconds;
         setNow(utcMilliseconds);
+        const sequence = clockCheckSequence.current + 1;
+        clockCheckSequence.current = sequence;
+        void checkDeviceClock().then((result) => {
+          if (clockCheckSequence.current === sequence) {
+            setClockWarning(result.status === "warning" ? result.reason : null);
+          }
+        });
       }),
     [],
   );
@@ -82,12 +113,32 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
     };
     previousTick.current = utcMilliseconds;
     setNow(utcMilliseconds);
-    setMessage("Eclipse contacts changed. Test audio, then arm again.");
+    setMessage("Eclipse contacts changed. Test speech or tone, then arm again.");
   }, [contacts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       const current = currentUtcFromBaseline(clockBaseline.current);
+      const wallClockUtcMilliseconds = Date.now();
+      if (
+        Math.abs(wallClockUtcMilliseconds - current) >
+        CLOCK_JUMP_WARNING_MILLISECONDS
+      ) {
+        clockBaseline.current = {
+          monotonicMilliseconds: monotonicNow(),
+          utcMilliseconds: wallClockUtcMilliseconds,
+        };
+        previousTick.current = wallClockUtcMilliseconds;
+        setNow(wallClockUtcMilliseconds);
+        setClockWarning(
+          "Device time changed while the timeline was running. Check the clock and arm again.",
+        );
+        if (armed) {
+          setArmed(false);
+          setMessage("Timeline disarmed after a device-time change.");
+        }
+        return;
+      }
       setNow(current);
       if (armed) {
         const due = findDueMarkers(
@@ -141,6 +192,7 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   };
 
   const restoreDefaults = (): void => {
+    clockCheckSequence.current += 1;
     setArmed(false);
     firedIds.current.clear();
     setMarkers(DEFAULT_AUDIO_MARKERS.map((marker) => ({ ...marker })));
@@ -148,8 +200,20 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
   };
 
   const arm = async (): Promise<void> => {
+    const sequence = clockCheckSequence.current + 1;
+    clockCheckSequence.current = sequence;
     try {
       await primeAudio();
+      if (clockCheckSequence.current !== sequence) {
+        return;
+      }
+      const clockTrust = await checkDeviceClock();
+      if (clockCheckSequence.current !== sequence) {
+        return;
+      }
+      setClockWarning(
+        clockTrust.status === "warning" ? clockTrust.reason : null,
+      );
       const utcMilliseconds = Date.now();
       clockBaseline.current = {
         monotonicMilliseconds: monotonicNow(),
@@ -162,18 +226,21 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
       setArmed(true);
       setMessage("Timeline armed. Keep this page awake and visible.");
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : "Could not arm audio.");
+      if (clockCheckSequence.current === sequence) {
+        setMessage(error instanceof Error ? error.message : "Could not arm audio.");
+      }
     }
   };
 
   const disarm = (): void => {
+    clockCheckSequence.current += 1;
     setArmed(false);
     setMessage("Timeline disarmed.");
   };
 
-  const test = async (): Promise<void> => {
+  const test = async (spoken: boolean): Promise<void> => {
     try {
-      const mode = await playAudioCue("Eclipse audio test", true);
+      const mode = await playAudioCue("Eclipse audio test", spoken);
       setMessage(`Audio test played using ${mode}.`);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "Audio test failed.");
@@ -187,6 +254,8 @@ export const useAudioTimeline = (contacts: ContactRecord) => {
     now,
     armed,
     pageWasHidden,
+    speechAvailable,
+    clockWarning,
     message,
     addMarker,
     updateMarker,

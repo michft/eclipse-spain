@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a responsive Expo TypeScript web app for choosing and using an eclipse observation location. It must be usable in phone browsers and deploy as a static single-page app on Vercel. There are no native iOS or Android deliverables.
+Build a responsive Expo TypeScript web app for choosing and using an eclipse observation location. It must be usable in phone browsers and deploy on Vercel. The browser app is a static single-page app; one narrow same-origin Vercel Function proxies fixed transport queries because the public Overpass endpoint failed CORS in the deployed browser. There are no native iOS or Android deliverables.
 
 The app combines:
 
@@ -33,9 +33,9 @@ Event-specific values live in data files. UI and calculation code must not conta
 
 - Expo + TypeScript.
 - Web only, responsive on phones.
-- Static Vercel deployment target.
+- Static browser bundle on Vercel with one fixed-query transport Function.
 - OpenStreetMap map data and attribution.
-- No public product version number before the first production deployment.
+- No public product version number before the first accepted production deployment.
 - Show the terrain horizon; do not implement a 2° pass/fail rule.
 - Do not implement a C3 + 60 seconds horizon warning.
 - Audio timeline markers are freely addable and removable.
@@ -176,7 +176,9 @@ App.tsx
   external adapters
     Open-Meteo elevation
     Open-Meteo cloud forecast
-    Overpass/OSM transport
+    same-origin transport client
+  Vercel Function
+    fixed Overpass/OSM transport query proxy
   event data
     2026 Spain
     2027 Middle East
@@ -190,7 +192,9 @@ Implementation rules:
 - Web-only APIs live behind small adapters.
 - Components render explicit loading, success, unavailable, and failure states.
 - Avoid `any`.
-- Do not add a backend until public API limits or browser restrictions prove one necessary.
+- Keep the backend limited to the transport proxy proven necessary by production
+  Overpass CORS failure. It accepts coordinates, creates the fixed query, and has
+  no secrets, accounts, or database.
 
 ## Data and source policy
 
@@ -201,7 +205,7 @@ Implementation rules:
 | Elevation profile | Open-Meteo elevation API |
 | Cloud forecast | Open-Meteo forecast API |
 | Map | OpenStreetMap-compatible tiles with visible attribution |
-| Transport | OpenStreetMap via Overpass API |
+| Transport | OpenStreetMap via Overpass API through a same-origin Vercel Function |
 
 Card 07 is the intentional source and comparison hub for the results in Cards 01–06. Derived results identify their method inline where useful. Store source URLs with event or service configuration instead of scattering them through components.
 
@@ -209,6 +213,8 @@ Card 07 is the intentional source and comparison hub for the results in Cards 01
 
 ```text
 App.tsx
+api/
+  transport.ts
 src/
   components/
   data/
@@ -232,6 +238,8 @@ Each piece gets focused validation, a meaningful JJ description, and its own boo
 5. `mobile-ui` — OSM map, analysis workspace, source links, QR sharing.
 6. `audio-timeline` — editable markers, persistence, speech/tone scheduling, tests.
 7. `vercel-ready` — production export, Vercel config, documentation, final checks.
+8. `mvp-plan-complete` — phase-selectable horizon details, complete warnings and
+   sources, production transport proxy, and plan-to-code reconciliation.
 
 Bookmarks are local organization points. Do not push or deploy unless explicitly requested.
 
@@ -262,15 +270,18 @@ The repository is deployment-ready when:
 
 - `pnpm build:web` creates `dist/` successfully;
 - `vercel.json` builds and serves the Expo SPA with history fallback;
+- `/api/transport` validates coordinates and proxies only the fixed Overpass query;
 - no secret keys are required by the browser bundle;
 - README documents local setup, validation, data limitations, and Vercel deployment;
-- public product version remains absent until the first successful deployment.
+- public product version remains absent until the first accepted deployment of
+  the completed MVP.
 
 Deployment itself requires explicit user instruction and Vercel authorization.
 
 ## Implementation status
 
-The MVP described above is implemented through the `audio-timeline` bookmark.
-The final `vercel-ready` bookmark contains deployment configuration, complete
-operator documentation, and the final validation record. No deployment, public
-version, remote push, or release is part of this implementation run.
+The MVP source described above is implemented through the `mvp-plan-complete`
+bookmark. The existing `eclipse-spain-ten.vercel.app` deployment predates that
+completion work and is a partial deployment, not the acceptance target. It must
+be redeployed from the bookmark and pass the manual browser checklist before it
+is treated as operational. No public product version is assigned yet.

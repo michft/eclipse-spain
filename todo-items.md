@@ -3,5 +3,5 @@
 - Make totality lines on map.
 - Make partial eclipse lines on map
 - Add rest of eclipse path
-- do for all 3 exlipse
+- Apply the eclipse-path overlays to all three configured eclipse events.
 - improve design

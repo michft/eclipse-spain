@@ -3,6 +3,11 @@
 Run these checks against a production export or Vercel preview on both a phone
 browser and a desktop browser.
 
+The existing `eclipse-spain-ten.vercel.app` deployment is a pre-completion
+baseline and has a confirmed direct-Overpass CORS failure. Do not accept it as
+the result of `mvp-plan-complete`. Redeploy that bookmark, then run every check
+below against the new deployment.
+
 ## Event and location
 
 - Select each of the 2026, 2027, and 2028 events.
@@ -18,15 +23,17 @@ browser and a desktop browser.
 - Select a partial-eclipse point and confirm C2/C3 are omitted without breaking
   the audio editor.
 - Compare contact times and centre line with the linked NASA source.
-- Confirm horizon graph shows sampled terrain and the Sun reference line.
+- Select every available C1/C2/maximum/C3/C4 horizon phase and confirm the graph,
+  Sun reference, azimuth text, and distance/elevation/apparent-angle rows update.
 - Confirm no 2° pass/fail or C3+60 warning appears.
 - Block one provider in browser tools and confirm other result cards survive.
 - For a far-future event, confirm cloud says the forecast is not available yet.
-- Open every transport object and source link.
+- Confirm transport succeeds without a browser CORS error, always shows the 25 km
+  query radius and retrieval time, then open every object and source link.
 
 ## Audio
 
-- Test spoken audio and test tone-only mode.
+- Use the separate Test speech and Test tone controls.
 - Add a marker; edit label, anchor, `45`, `1:30`, and `-0:30` offsets.
 - Reject malformed offsets such as `1:60`.
 - Toggle enabled and spoken flags; remove every marker, including defaults.
@@ -34,6 +41,9 @@ browser and a desktop browser.
 - Restore defaults.
 - Arm and disarm from a user gesture.
 - Hide the tab and confirm the suspension warning appears on return.
+- Confirm an unavailable speech API shows the tone-fallback warning.
+- Confirm a failed network-time check shows a clock warning; changing device time
+  while armed must disarm the timeline and show a warning.
 - Confirm an overdue marker is not unexpectedly replayed after a long suspension.
 - Switch between time-to-next-marker and current-obscuration displays.
 

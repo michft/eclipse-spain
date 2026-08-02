@@ -105,8 +105,11 @@ export const AudioTimelinePanel = ({
       </View>
 
       <View style={styles.controls}>
-        <ActionButton onPress={() => void timeline.test()} secondary>
-          Test audio
+        <ActionButton onPress={() => void timeline.test(true)} secondary>
+          Test speech
+        </ActionButton>
+        <ActionButton onPress={() => void timeline.test(false)} secondary>
+          Test tone
         </ActionButton>
         {timeline.armed ? (
           <ActionButton onPress={timeline.disarm}>Disarm</ActionButton>
@@ -129,6 +132,15 @@ export const AudioTimelinePanel = ({
           This page was hidden after arming. The browser may have suspended timers;
           check the timeline and arm again if needed.
         </Text>
+      ) : null}
+      {!timeline.speechAvailable ? (
+        <Text style={styles.warning}>
+          Speech synthesis is unavailable in this browser. Spoken markers will use
+          the tone fallback.
+        </Text>
+      ) : null}
+      {timeline.clockWarning ? (
+        <Text style={styles.warning}>{timeline.clockWarning}</Text>
       ) : null}
 
       <View style={styles.markers}>

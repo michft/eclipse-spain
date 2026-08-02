@@ -6,6 +6,7 @@ import { theme } from "../styles/theme";
 
 interface HorizonChartProps {
   profile: HorizonProfile;
+  phaseLabel: string;
   sunAltitudeDegrees: number;
 }
 
@@ -16,7 +17,13 @@ const PAD_RIGHT = 12;
 const PAD_TOP = 14;
 const PAD_BOTTOM = 28;
 
+const formatDistance = (distanceKm: number): string =>
+  distanceKm < 1
+    ? `${Math.round(distanceKm * 1000)} m`
+    : `${distanceKm.toFixed(distanceKm < 10 ? 2 : 0)} km`;
+
 export const HorizonChart = ({
+  phaseLabel,
   profile,
   sunAltitudeDegrees,
 }: HorizonChartProps) => {
@@ -103,7 +110,23 @@ export const HorizonChart = ({
       </Svg>
       <View style={styles.legend}>
         <Text style={styles.terrain}>— sampled terrain</Text>
-        <Text style={styles.sun}>- - Sun at maximum</Text>
+        <Text style={styles.sun}>- - Sun at {phaseLabel}</Text>
+      </View>
+      <View style={styles.sampleTable}>
+        <View style={[styles.sampleRow, styles.sampleHeader]}>
+          <Text style={[styles.sampleCell, styles.sampleHeaderText]}>Distance</Text>
+          <Text style={[styles.sampleCell, styles.sampleHeaderText]}>Elevation</Text>
+          <Text style={[styles.sampleCell, styles.sampleHeaderText]}>Apparent angle</Text>
+        </View>
+        {profile.samples.map((sample) => (
+          <View key={sample.distanceKm} style={styles.sampleRow}>
+            <Text style={styles.sampleCell}>{formatDistance(sample.distanceKm)}</Text>
+            <Text style={styles.sampleCell}>{Math.round(sample.elevationMeters)} m</Text>
+            <Text style={styles.sampleCell}>
+              {sample.apparentTerrainAngleDegrees.toFixed(2)}°
+            </Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -132,5 +155,29 @@ const styles = StyleSheet.create({
   sun: {
     color: theme.color.accent,
     fontSize: 12,
+  },
+  sampleTable: {
+    borderTopColor: theme.color.border,
+    borderTopWidth: 1,
+  },
+  sampleRow: {
+    borderBottomColor: theme.color.border,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: theme.space.small,
+    paddingVertical: 7,
+  },
+  sampleHeader: {
+    backgroundColor: theme.color.surfaceRaised,
+  },
+  sampleCell: {
+    color: theme.color.text,
+    flex: 1,
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
+  },
+  sampleHeaderText: {
+    color: theme.color.muted,
+    fontWeight: "700",
   },
 });
