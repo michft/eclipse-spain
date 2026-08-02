@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Eclipse Observer",
+    "slug": "eclipse-observer",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "display": "standalone",
+      "lang": "en",
+      "name": "Eclipse Observer",
+      "shortName": "Eclipse",
+      "description": "Plan an eclipse observation location and run a spoken countdown.",
+      "themeColor": "#081018",
+      "backgroundColor": "#081018"
+    }
+  }
+}

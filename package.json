@@ -1,0 +1,36 @@
+{
+  "name": "eclipse-observer",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:web": "expo export -p web",
+    "validate": "pnpm typecheck && pnpm test && pnpm build:web && git diff --check"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.8",
+    "astronomy-engine": "^2.1.19",
+    "expo": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "leaflet": "^1.9.4",
+    "qrcode": "^1.5.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-native": "0.86.2",
+    "react-native-svg": "^15.15.5",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
