@@ -284,8 +284,8 @@ export default function App() {
 
       {/* Conditional View: Map or Horizon Panel */}
       <View style={styles.contentArea}>
-        {!panelOpen && (
-          <>
+        {panelOpen ? null : (
+          <View key="map-view" style={styles.contentWrapper}>
             {/* Map View */}
             <View style={styles.mapContainer}>
               <MapPanel
@@ -377,12 +377,11 @@ export default function App() {
                 📍
               </ActionButton>
             </View>
-          </>
+          </View>
         )}
-
-        {panelOpen && (
+        {!panelOpen ? null : (
           /* Horizon View */
-          <ScrollView style={styles.horizonView} showsVerticalScrollIndicator={false}>
+          <ScrollView key="horizon-view" style={styles.horizonView} showsVerticalScrollIndicator={false}>
             <View style={styles.horizonContainer}>
               <View style={styles.horizonHeader}>
                 <Text style={styles.horizonTitle}>Sky at Maximum Eclipse</Text>
@@ -519,6 +518,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentArea: {
+    flex: 1,
+  },
+  contentWrapper: {
     flex: 1,
   },
   header: {
