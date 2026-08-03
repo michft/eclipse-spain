@@ -304,7 +304,7 @@ export const HorizonSimulator = ({
         value={fieldOfViewDegrees}
       />
       <Text style={styles.helperText}>
-        Drag the control, or scroll over the chart, to zoom from 30° to 180°.
+        Drag the control, or focus the chart then scroll, to zoom from 30° to 180°.
       </Text>
       <View accessibilityLabel="Cardinal bearings" style={styles.compassKey}>
         {CARDINAL_POINTS.map((cardinal) => (
@@ -313,10 +313,11 @@ export const HorizonSimulator = ({
           </Text>
         ))}
       </View>
-      <HorizonZoomSurface
-        onZoomBy={(degrees) => changeFieldOfView(fieldOfViewDegrees + degrees)}
-      >
-        <View style={styles.skyFrame}>
+      <View style={styles.chartBleed}>
+        <HorizonZoomSurface
+          onZoomBy={(degrees) => changeFieldOfView(fieldOfViewDegrees + degrees)}
+        >
+          <View style={styles.skyFrame}>
           <Svg
             accessibilityLabel="Animated observer sky showing Sun and Moon above the sampled terrain horizon"
             height={HEIGHT}
@@ -440,8 +441,9 @@ export const HorizonSimulator = ({
             {normalizeAzimuth(skyline.centerAzimuthDegrees + halfField).toFixed(0)}° az
           </SvgText>
           </Svg>
-        </View>
-      </HorizonZoomSurface>
+          </View>
+        </HorizonZoomSurface>
+      </View>
       <Text style={styles.controlLabel}>Simulation time</Text>
       <TimelineSlider
         maximum={endMilliseconds}
@@ -519,14 +521,15 @@ export const HorizonSimulator = ({
 };
 
 const styles = StyleSheet.create({
-  container: { gap: theme.space.medium },
+  container: { gap: theme.space.medium, paddingHorizontal: theme.space.medium },
   liveMetrics: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium, justifyContent: "space-between" },
   time: { color: theme.color.accent, fontSize: 23, fontVariant: ["tabular-nums"], fontWeight: "900" },
   muted: { color: theme.color.muted, fontSize: 12 },
   rightMetrics: { alignItems: "flex-end", gap: theme.space.xsmall },
   metricText: { color: theme.color.text, fontSize: 13, fontVariant: ["tabular-nums"] },
   blocked: { color: theme.color.warning },
-  skyFrame: { borderColor: theme.color.border, borderRadius: theme.radius.medium, borderWidth: 1, overflow: "hidden" },
+  chartBleed: { marginHorizontal: -theme.space.medium },
+  skyFrame: { borderColor: theme.color.border, borderWidth: 1, borderLeftWidth: 0, borderRightWidth: 0, overflow: "hidden" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
   legendItem: { alignItems: "center", flexDirection: "row", gap: theme.space.small },
   legendLine: { borderTopWidth: 2, width: 28 },

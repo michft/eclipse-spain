@@ -840,10 +840,12 @@ const styles = StyleSheet.create({
   },
   horizonFrame: {
     borderColor: theme.color.border,
-    borderRadius: theme.radius.medium,
     borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
     marginBottom: theme.space.medium,
-    padding: theme.space.medium,
+    marginHorizontal: -theme.space.medium,
+    paddingVertical: theme.space.medium,
   },
   metricsGrid: {
     flexDirection: "row",
