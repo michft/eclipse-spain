@@ -60,8 +60,58 @@ describe("transport API", () => {
       "overpass.private.coffee",
     );
     expect(cancel).toHaveBeenCalledOnce();
-    expect(fetchFunction.mock.calls[0]?.[1]?.signal).not.toBe(
+    expect(fetchFunction.mock.calls[0]?.[1]?.signal).toBe(
       fetchFunction.mock.calls[1]?.[1]?.signal,
+    );
+  });
+
+  it("uses the fallback when the primary request rejects", async () => {
+    const fetchFunction = vi
+      .fn<FetchFunction>()
+      .mockRejectedValueOnce(new Error("primary failed"))
+      .mockResolvedValueOnce(Response.json({ elements: [] }));
+
+    const response = await handleTransportRequest(request(), fetchFunction);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ elements: [] });
+    expect(fetchFunction).toHaveBeenCalledTimes(2);
+    expect(String(fetchFunction.mock.calls[1]?.[0])).toContain(
+      "overpass.private.coffee",
+    );
+  });
+
+  it.each([
+    {
+      name: "primary response",
+      responses: [
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "7" },
+        }),
+      ],
+    },
+    {
+      name: "fallback response",
+      responses: [
+        new Response(null, { status: 500 }),
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "11" },
+        }),
+      ],
+    },
+  ])("preserves Retry-After from the $name", async ({ responses }) => {
+    const fetchFunction = vi.fn<FetchFunction>();
+    responses.forEach((response) => {
+      fetchFunction.mockResolvedValueOnce(response);
+    });
+
+    const response = await handleTransportRequest(request(), fetchFunction);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe(
+      responses.at(-1)?.headers.get("Retry-After"),
     );
   });
 
@@ -119,5 +169,38 @@ describe("transport API", () => {
     await expect(response.json()).resolves.toEqual({
       reason: "Transport provider timed out.",
     });
+    expect(fetchFunction).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares one timeout across primary and fallback", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchFunction = vi.fn<FetchFunction>((_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const rejectAbort = () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          };
+          if (init?.signal?.aborted) {
+            rejectAbort();
+          } else {
+            init?.signal?.addEventListener("abort", rejectAbort, { once: true });
+          }
+        }),
+      );
+
+      const result = handleTransportRequest(request(), fetchFunction);
+      await vi.advanceTimersByTimeAsync(30_000);
+      const response = await result;
+
+      expect(response.status).toBe(504);
+      expect(fetchFunction).toHaveBeenCalledTimes(2);
+      expect(fetchFunction.mock.calls[0]?.[1]?.signal).toBe(
+        fetchFunction.mock.calls[1]?.[1]?.signal,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

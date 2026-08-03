@@ -26,7 +26,7 @@ describe("client rate-limit backoff", () => {
       fetchFunction,
       "https://example.com/data",
       undefined,
-      { delay: wait },
+      { delay: wait, random: () => 0 },
     );
 
     expect(response.status).toBe(200);
@@ -51,7 +51,7 @@ describe("client rate-limit backoff", () => {
       fetchFunction,
       "https://example.com/data",
       undefined,
-      { delay: wait, maximumRetries: 2 },
+      { delay: wait, maximumRetries: 2, random: () => 0 },
     );
 
     expect(response.status).toBe(429);
@@ -83,11 +83,56 @@ describe("client rate-limit backoff", () => {
       fetchFunction,
       "https://example.com/data",
       undefined,
-      { delay: wait },
+      { delay: wait, random: () => 0 },
     );
 
     expect(wait.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([
       5_000, 10_000,
+    ]);
+  });
+
+  it("adds randomised jitter without going below the backoff", async () => {
+    const fetchFunction = vi
+      .fn<FetchFunction>()
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null));
+    const wait = vi.fn<
+      (
+        milliseconds: number,
+        signal: AbortSignal | null | undefined,
+      ) => Promise<void>
+    >(async () => undefined);
+
+    await fetchWithRateLimitBackoff(
+      fetchFunction,
+      "https://example.com/data",
+      undefined,
+      { delay: wait, random: () => 0.5 },
+    );
+
+    expect(wait).toHaveBeenCalledWith(1_500, undefined);
+  });
+
+  it("keeps maximum default jitter inside the declared retry budget", async () => {
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response(null, { status: 429 }),
+    );
+    const wait = vi.fn<
+      (
+        milliseconds: number,
+        signal: AbortSignal | null | undefined,
+      ) => Promise<void>
+    >(async () => undefined);
+
+    await fetchWithRateLimitBackoff(
+      fetchFunction,
+      "https://example.com/data",
+      undefined,
+      { delay: wait, random: () => 1 },
+    );
+
+    expect(wait.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([
+      2_000, 4_000, 8_000,
     ]);
   });
 });

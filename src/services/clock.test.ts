@@ -53,6 +53,7 @@ describe("device clock check", () => {
 
   it("measures clock skew from the successful retry, excluding backoff", async () => {
     vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
     try {
       const serverTime = Date.parse("2026-08-02T14:00:01.000Z");
       vi.setSystemTime(serverTime - 1_000);
@@ -73,6 +74,7 @@ describe("device clock check", () => {
         differenceMilliseconds: 0,
       });
     } finally {
+      random.mockRestore();
       vi.useRealTimers();
     }
   });
@@ -92,7 +94,7 @@ describe("device clock check", () => {
       );
 
       const result = checkDeviceClock(fetchFunction, Date.now, "/");
-      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(20_000);
 
       await expect(result).resolves.toEqual({
         status: "warning",

@@ -2,6 +2,7 @@ import type { FetchFunction } from "./result";
 
 const INITIAL_BACKOFF_MILLISECONDS = 1_000;
 const MAXIMUM_RETRIES = 3;
+export const DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS = 14_000;
 
 type DelayFunction = (
   milliseconds: number,
@@ -12,6 +13,7 @@ interface RateLimitBackoffOptions {
   delay?: DelayFunction;
   initialBackoffMilliseconds?: number;
   maximumRetries?: number;
+  random?: () => number;
 }
 
 const abortError = (): Error => {
@@ -71,8 +73,10 @@ export const fetchWithRateLimitBackoff = async (
   const initialBackoff =
     options.initialBackoffMilliseconds ?? INITIAL_BACKOFF_MILLISECONDS;
   const maximumRetries = options.maximumRetries ?? MAXIMUM_RETRIES;
+  const random = options.random ?? Math.random;
   let retries = 0;
   let backoffMilliseconds = initialBackoff;
+  let minimumWaitMilliseconds = initialBackoff;
 
   while (true) {
     const response = await fetchFunction(input, init);
@@ -80,12 +84,18 @@ export const fetchWithRateLimitBackoff = async (
       return response;
     }
 
+    const jitter = Math.max(0, Math.min(1, random()));
     const waitMilliseconds = Math.max(
-      backoffMilliseconds,
+      backoffMilliseconds + backoffMilliseconds * jitter,
+      minimumWaitMilliseconds,
       retryAfterMilliseconds(response),
     );
     retries += 1;
     backoffMilliseconds = Math.min(
+      Number.MAX_SAFE_INTEGER,
+      backoffMilliseconds * 2,
+    );
+    minimumWaitMilliseconds = Math.min(
       Number.MAX_SAFE_INTEGER,
       waitMilliseconds * 2,
     );
