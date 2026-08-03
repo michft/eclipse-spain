@@ -129,7 +129,8 @@ The horizon feature is explanatory, not a verdict.
 - Label the Sun path, Moon path, terrain skyline, astronomical horizon, and
   altitude guides without relying on colour alone.
 - Sample terrain through 180°, show N/E/S/W bearings, and default the visible
-  field of view to 75°.
+  field of view to 45°.
+- Label exact whole-hour positions along the eclipse path in UTC as `HH:00Z`.
 - Allow a 30°–180° field of view using the visible slider, mouse wheel while the
   chart has focus, or keyboard controls. Unfocused wheel input scrolls the page.
 - Extend the horizon chart to both window edges while keeping its controls and

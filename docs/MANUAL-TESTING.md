@@ -50,8 +50,10 @@ then run every check below against that exact deployment.
   are fully visible below the chart on phone and desktop layouts.
 - Confirm every altitude guide has a degree label and the visible key names the
   Sun path, Moon path, terrain skyline, and astronomical horizon.
-- Confirm the horizon opens at 75°, shows N/E/S/W bearings, reaches both window
+- Confirm the horizon opens at 45°, shows N/E/S/W bearings, reaches both window
   edges, and adjusts from 30° through 180° using the slider.
+- Confirm every whole hour within C1–C4 appears on the eclipse path in UTC using
+  labels such as `19:00Z` and `20:00Z`.
 - On web, scroll over the unfocused chart and confirm only the page moves. Focus
   the chart, scroll again, and confirm only the field of view changes. Confirm
   keyboard arrows change field of view without changing simulation time.

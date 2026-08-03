@@ -68,12 +68,13 @@ location. Its page state selects exactly one of Map, Horizon, Contact times,
 Weather, Sources, or QR without resetting that shared state. Contact times owns
 the editable audio timeline. `HorizonSimulator` animates calculated Sun/Moon
 positions against the sampled terrain skyline and owns its visible line key,
-altitude/cardinal labels, 75° default field-of-view control, time scrubber,
-playback controls, and contact jumps. `eclipsePaths.ts` stores NASA path-table
-rows; `eclipseContours.generated.ts` stores reproducible Astronomy Engine
-partial-obscuration and hourly UTC curves. Components render explicit loading,
-unavailable, failure, and success states. The Leaflet map has a `.web.tsx`
-implementation and a non-web fallback even though only web deployment is supported.
+altitude/cardinal labels, whole-hour UTC path labels, 45° default field-of-view
+control, time scrubber, playback controls, and contact jumps. `eclipsePaths.ts`
+stores NASA path-table rows; `eclipseContours.generated.ts` stores reproducible
+Astronomy Engine partial-obscuration and hourly UTC curves. Components render
+explicit loading, unavailable, failure, and success states. The Leaflet map has
+a `.web.tsx` implementation and a non-web fallback even though only web
+deployment is supported.
 
 ## Sharing
 

@@ -93,7 +93,7 @@ const contacts: ContactRecord = {
     label: "Last contact",
     sunAltitudeDegrees: 2,
     sunAzimuthDegrees: 190,
-    utc: "2026-08-12T19:30:00.000Z",
+    utc: "2026-08-12T20:30:00.000Z",
   },
 };
 
@@ -165,21 +165,31 @@ describe("HorizonSimulator", () => {
       .findAllByType(Text)
       .map((node) => node.children.join(""));
     expect(visibleText).toEqual(
-      expect.arrayContaining(["75°", "N 0°", "E 90°", "S 180°", "W 270°"]),
+      expect.arrayContaining(["45°", "N 0°", "E 90°", "S 180°", "W 270°"]),
     );
 
     const altitudeLabels = renderer?.root
       .findAllByType(SvgText)
       .map((node) => node.children.join(""));
     expect(altitudeLabels).toEqual(
-      expect.arrayContaining(["0°", "10°", "20°", "40°", "60°", "80°"]),
+      expect.arrayContaining([
+        "0°",
+        "10°",
+        "20°",
+        "40°",
+        "60°",
+        "80°",
+        "18:00Z",
+        "19:00Z",
+        "20:00Z",
+      ]),
     );
 
     const fieldOfViewSlider = mocks.sliderProps.find(
       (props) => props.accessibilityLabel === "Horizon field of view",
     );
     expect(fieldOfViewSlider).toEqual(
-      expect.objectContaining({ maximum: 180, minimum: 30, step: 5, value: 75 }),
+      expect.objectContaining({ maximum: 180, minimum: 30, step: 5, value: 45 }),
     );
     const onFieldOfViewChange = fieldOfViewSlider?.onChange;
     if (typeof onFieldOfViewChange !== "function") {

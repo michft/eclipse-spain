@@ -39,8 +39,9 @@ const PAD_RIGHT = 20;
 const PAD_TOP = 18;
 const PAD_BOTTOM = 34;
 const PATH_SAMPLES = 48;
+const HOUR_MILLISECONDS = 60 * 60 * 1000;
 const ALTITUDE_GUIDES = [0, 10, 20, 40, 60, 80] as const;
-const DEFAULT_FIELD_OF_VIEW_DEGREES = 75;
+const DEFAULT_FIELD_OF_VIEW_DEGREES = 45;
 const MINIMUM_FIELD_OF_VIEW_DEGREES = 30;
 const MAXIMUM_FIELD_OF_VIEW_DEGREES = 180;
 const FIELD_OF_VIEW_STEP_DEGREES = 5;
@@ -59,6 +60,9 @@ const normalizeAzimuth = (azimuth: number): number =>
 
 const formatUtc = (milliseconds: number): string =>
   new Date(milliseconds).toISOString().slice(11, 19) + " UTC";
+
+const formatUtcHour = (milliseconds: number): string =>
+  new Date(milliseconds).toISOString().slice(11, 16) + "Z";
 
 const interpolateTerrain = (
   samples: ElevationProfileResult["skyline"]["samples"],
@@ -155,6 +159,32 @@ export const HorizonSimulator = ({
     }).filter((state): state is ObserverSkyState => state !== null);
   }, [elevation.observerElevationMeters, endMilliseconds, location, startMilliseconds]);
 
+  const hourlyPath = useMemo(() => {
+    if (!Number.isFinite(startMilliseconds) || !Number.isFinite(endMilliseconds)) {
+      return [];
+    }
+    const firstHourMilliseconds =
+      Math.ceil(startMilliseconds / HOUR_MILLISECONDS) * HOUR_MILLISECONDS;
+    const hourCount = Math.max(
+      0,
+      Math.floor(
+        (endMilliseconds - firstHourMilliseconds) / HOUR_MILLISECONDS,
+      ) + 1,
+    );
+    return Array.from({ length: hourCount }, (_, index) => {
+      const milliseconds = firstHourMilliseconds + index * HOUR_MILLISECONDS;
+      const state = calculateObserverSky(
+        location,
+        new Date(milliseconds),
+        elevation.observerElevationMeters,
+      );
+      return state ? { milliseconds, state } : null;
+    }).filter(
+      (marker): marker is { milliseconds: number; state: ObserverSkyState } =>
+        marker !== null,
+    );
+  }, [elevation.observerElevationMeters, endMilliseconds, location, startMilliseconds]);
+
   const current = calculateObserverSky(
     location,
     new Date(simulatedMilliseconds),
@@ -214,6 +244,20 @@ export const HorizonSimulator = ({
       .filter((point) => Math.abs(point.offset) <= halfField)
       .map((point) => `${x(point.offset)},${y(point.altitude)}`)
       .join(" ");
+  const visibleHourMarkers = hourlyPath.flatMap((marker) => {
+    const sunOffset = azimuthOffset(
+      marker.state.sun.azimuthDegrees,
+      skyline.centerAzimuthDegrees,
+    );
+    const moonOffset = azimuthOffset(
+      marker.state.moon.azimuthDegrees,
+      skyline.centerAzimuthDegrees,
+    );
+    const labelOffset = (sunOffset + moonOffset) / 2;
+    return Math.abs(labelOffset) <= halfField
+      ? [{ ...marker, labelOffset, moonOffset, sunOffset }]
+      : [];
+  });
   const visibleTerrainSamples = [
     {
       azimuthOffsetDegrees: -halfField,
@@ -366,6 +410,42 @@ export const HorizonSimulator = ({
             strokeDasharray="7 6"
             strokeWidth={2}
           />
+          {visibleHourMarkers.map((marker) => {
+            const sunX = x(marker.sunOffset);
+            const sunY = y(marker.state.sun.altitudeDegrees);
+            const moonX = x(marker.moonOffset);
+            const moonY = y(marker.state.moon.altitudeDegrees);
+            return (
+              <G key={`utc-hour:${marker.milliseconds}`}>
+                <Line
+                  opacity={0.65}
+                  stroke={theme.color.text}
+                  strokeWidth={1}
+                  x1={sunX}
+                  x2={moonX}
+                  y1={sunY}
+                  y2={moonY}
+                />
+                <Circle
+                  cx={sunX}
+                  cy={sunY}
+                  fill={theme.color.accent}
+                  r={3}
+                />
+                <Circle cx={moonX} cy={moonY} fill="#d9e2ea" r={3} />
+                <SvgText
+                  fill={theme.color.accent}
+                  fontSize={11}
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  x={x(marker.labelOffset)}
+                  y={Math.max(PAD_TOP + 12, Math.min(sunY, moonY) - 8)}
+                >
+                  {formatUtcHour(marker.milliseconds)}
+                </SvgText>
+              </G>
+            );
+          })}
           {Math.abs(sunOffset) <= halfField ? (
             <>
               <Circle
