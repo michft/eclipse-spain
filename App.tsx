@@ -284,110 +284,112 @@ export default function App() {
 
       {/* Conditional View: Map or Horizon Panel */}
       <View style={styles.contentArea}>
-        {/* Map View */}
-        <View style={[styles.viewWrapper, panelOpen && styles.viewHidden]}>
-          {/* Map Canvas */}
-          <View style={styles.mapContainer}>
-            <MapPanel
-              bounds={selectedEvent.mapBounds}
-              candidates={
-                finder.state === "result" && finder.result.status === "success"
-                  ? finder.result.value.candidates.map(
-                      (candidate) => candidate.location,
-                    )
-                  : []
-              }
-              centerLine={selectedEvent.centerLine}
-              location={location}
-              onLocationChange={(nextLocation) => selectLocation(nextLocation)}
-            />
+        {!panelOpen && (
+          <>
+            {/* Map View */}
+            <View style={styles.mapContainer}>
+              <MapPanel
+                bounds={selectedEvent.mapBounds}
+                candidates={
+                  finder.state === "result" && finder.result.status === "success"
+                    ? finder.result.value.candidates.map(
+                        (candidate) => candidate.location,
+                      )
+                    : []
+                }
+                centerLine={selectedEvent.centerLine}
+                location={location}
+                onLocationChange={(nextLocation) => selectLocation(nextLocation)}
+              />
 
-            {/* Floating Info Card */}
-            <View style={styles.floatingCard}>
-              <View style={styles.floatingHeader}>
-                <Text style={styles.floatingTitle}>Current Point</Text>
-                <Text style={styles.floatingLocation}>
-                  {location.latitude.toFixed(3)}°N,{" "}
-                  {Math.abs(location.longitude).toFixed(3)}°E
-                </Text>
-              </View>
-
-              {eclipse ? (
-                <View style={styles.floatingMetrics}>
-                  <View style={styles.floatingMetric}>
-                    <Text style={styles.floatingMetricValue}>
-                      {(eclipse.obscuration * 100).toFixed(0)}%
-                    </Text>
-                    <Text style={styles.floatingMetricLabel}>Obscured</Text>
-                  </View>
-                  <View style={styles.floatingMetric}>
-                    <Text style={styles.floatingMetricValue}>
-                      {eclipse.centerLineDistanceKm === null
-                        ? "—"
-                        : `${eclipse.centerLineDistanceKm.toFixed(0)} km`}
-                    </Text>
-                    <Text style={styles.floatingMetricLabel}>to Path</Text>
-                  </View>
+              {/* Floating Info Card */}
+              <View style={styles.floatingCard}>
+                <View style={styles.floatingHeader}>
+                  <Text style={styles.floatingTitle}>Current Point</Text>
+                  <Text style={styles.floatingLocation}>
+                    {location.latitude.toFixed(3)}°N,{" "}
+                    {Math.abs(location.longitude).toFixed(3)}°E
+                  </Text>
                 </View>
-              ) : null}
 
-              <View style={styles.floatingActions}>
-                <ActionButton onPress={() => setPanelOpen(true)} secondary>
-                  Horizon
-                </ActionButton>
-                <ActionButton
-                  onPress={() => void findLocations(selectedEvent, location)}
-                  secondary
-                >
-                  Find
-                </ActionButton>
+                {eclipse ? (
+                  <View style={styles.floatingMetrics}>
+                    <View style={styles.floatingMetric}>
+                      <Text style={styles.floatingMetricValue}>
+                        {(eclipse.obscuration * 100).toFixed(0)}%
+                      </Text>
+                      <Text style={styles.floatingMetricLabel}>Obscured</Text>
+                    </View>
+                    <View style={styles.floatingMetric}>
+                      <Text style={styles.floatingMetricValue}>
+                        {eclipse.centerLineDistanceKm === null
+                          ? "—"
+                          : `${eclipse.centerLineDistanceKm.toFixed(0)} km`}
+                      </Text>
+                      <Text style={styles.floatingMetricLabel}>to Path</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.floatingActions}>
+                  <ActionButton onPress={() => setPanelOpen(true)} secondary>
+                    Horizon
+                  </ActionButton>
+                  <ActionButton
+                    onPress={() => void findLocations(selectedEvent, location)}
+                    secondary
+                  >
+                    Find
+                  </ActionButton>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Coordinate Input Bar */}
-          <View style={styles.inputBar}>
-            <TextInput
-              accessibilityLabel="Latitude"
-              keyboardType="numbers-and-punctuation"
-              onChangeText={setLatitudeInput}
-              placeholder="Lat"
-              placeholderTextColor={theme.color.muted}
-              style={styles.miniInput}
-              value={latitudeInput}
-            />
-            <TextInput
-              accessibilityLabel="Longitude"
-              keyboardType="numbers-and-punctuation"
-              onChangeText={setLongitudeInput}
-              placeholder="Lon"
-              placeholderTextColor={theme.color.muted}
-              style={styles.miniInput}
-              value={longitudeInput}
-            />
-            <ActionButton onPress={useCoordinates} style={styles.goButton}>
-              Go
-            </ActionButton>
-            <ActionButton
-              disabled={gettingLocation}
-              onPress={() => void useDeviceLocation()}
-              secondary
-              style={styles.locationButton}
-            >
-              📍
-            </ActionButton>
-          </View>
-        </View>
-
-        {/* Horizon View */}
-        <ScrollView style={[styles.horizonView, !panelOpen && styles.viewHidden]} showsVerticalScrollIndicator={false}>
-          <View style={styles.horizonContainer}>
-            <View style={styles.horizonHeader}>
-              <Text style={styles.horizonTitle}>Sky at Maximum Eclipse</Text>
-              <ActionButton onPress={() => setPanelOpen(false)} secondary>
-                ← Back to Map
+            {/* Coordinate Input Bar */}
+            <View style={styles.inputBar}>
+              <TextInput
+                accessibilityLabel="Latitude"
+                keyboardType="numbers-and-punctuation"
+                onChangeText={setLatitudeInput}
+                placeholder="Lat"
+                placeholderTextColor={theme.color.muted}
+                style={styles.miniInput}
+                value={latitudeInput}
+              />
+              <TextInput
+                accessibilityLabel="Longitude"
+                keyboardType="numbers-and-punctuation"
+                onChangeText={setLongitudeInput}
+                placeholder="Lon"
+                placeholderTextColor={theme.color.muted}
+                style={styles.miniInput}
+                value={longitudeInput}
+              />
+              <ActionButton onPress={useCoordinates} style={styles.goButton}>
+                Go
+              </ActionButton>
+              <ActionButton
+                disabled={gettingLocation}
+                onPress={() => void useDeviceLocation()}
+                secondary
+                style={styles.locationButton}
+              >
+                📍
               </ActionButton>
             </View>
+          </>
+        )}
+
+        {panelOpen && (
+          /* Horizon View */
+          <ScrollView style={styles.horizonView} showsVerticalScrollIndicator={false}>
+            <View style={styles.horizonContainer}>
+              <View style={styles.horizonHeader}>
+                <Text style={styles.horizonTitle}>Sky at Maximum Eclipse</Text>
+                <ActionButton onPress={() => setPanelOpen(false)} secondary>
+                  ← Back to Map
+                </ActionButton>
+              </View>
 
             {/* Horizon Simulator */}
             {elevation && eclipse ? (
@@ -488,7 +490,8 @@ export default function App() {
 
             <View style={styles.panelBottom} />
           </View>
-        </ScrollView>
+          </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -517,12 +520,6 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
-  },
-  viewWrapper: {
-    flex: 1,
-  },
-  viewHidden: {
-    display: "none",
   },
   header: {
     backgroundColor: theme.color.surfaceRaised,
