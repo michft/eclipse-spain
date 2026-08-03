@@ -571,6 +571,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     width: 180,
+    zIndex: 10,
   },
   floatingHeader: {
     marginBottom: theme.space.xsmall,
