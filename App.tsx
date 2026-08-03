@@ -283,7 +283,8 @@ export default function App() {
       </View>
 
       {/* Conditional View: Map or Horizon Panel */}
-      {!panelOpen ? (
+      <View style={styles.contentArea}>
+        {!panelOpen ? (
         /* ===== MAP VIEW ===== */
         <>
           {/* Map Canvas */}
@@ -489,7 +490,8 @@ export default function App() {
             <View style={styles.panelBottom} />
           </View>
         </ScrollView>
-      )}
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -513,6 +515,9 @@ const CloudDetails = ({ cloud }: { cloud: CloudForecast }) => (
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: theme.color.background,
+    flex: 1,
+  },
+  contentArea: {
     flex: 1,
   },
   header: {
