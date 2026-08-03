@@ -1,9 +1,12 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
   Image,
   Linking,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -133,12 +136,11 @@ const ContactRow = ({ contact }: { contact: EclipseContact | null }) => {
 };
 
 /**
- * Renders the eclipse event and location planning screen.
+ * Renders the eclipse event and location planning screen with immersive map explorer.
  *
- * Provides event selection, coordinate and device-location input, map-based location
- * selection, eclipse analysis, terrain and weather information, location finding,
- * audio planning, source links, and sharing controls. Interactive controls and
- * links include accessible labels and roles.
+ * Full-screen map canvas with floating location info overlay and swipeable horizon
+ * panel. Mobile-first design with interactive map, horizon simulator, and quick access
+ * to eclipse analysis, weather, audio timeline, and sharing.
  */
 export default function App() {
   const [initialSelection] = useState(() => readSharedSelection());
@@ -157,6 +159,26 @@ export default function App() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelYOffset = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, { dy }) => Math.abs(dy) > 10,
+      onPanResponderMove: Animated.event([null, { dy: panelYOffset }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, { dy, vy }) => {
+        const shouldClose = dy > 50 || vy > 0.5;
+        Animated.spring(panelYOffset, {
+          toValue: shouldClose ? 0 : -300,
+          useNativeDriver: false,
+          tension: 40,
+          friction: 7,
+        }).start(() => setPanelOpen(!shouldClose));
+      },
+    }),
+  ).current;
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
@@ -255,126 +277,168 @@ export default function App() {
       ? analysis.cloud.result.value
       : null;
 
+  const screenHeight = Dimensions.get("window").height;
+  const panelHeight = screenHeight * 0.6;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={styles.hero}>
-          <Text style={styles.kicker}>FIELD PLANNER</Text>
-          <Text accessibilityRole="header" style={styles.heading}>
-            Eclipse Observer
-          </Text>
-          <Text style={styles.lede}>
-            Choose a search area, compare observing candidates, and simulate the
-            eclipse over their terrain horizon.
-          </Text>
+      
+      {/* Header Bar */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Eclipse Observer</Text>
+          <Text style={styles.headerSubtitle}>{selectedEvent.region} · {selectedEvent.eventDateUtc.slice(0, 4)}</Text>
         </View>
-
-        <Card eyebrow="01" title="Find a location">
-          <Text style={styles.fieldLabel}>Eclipse</Text>
-          <View style={styles.eventOptions}>
+        <View style={styles.headerControls}>
+          <View style={styles.eventSelector}>
             {ECLIPSE_EVENTS.map((event) => (
               <ActionButton
                 key={event.id}
                 onPress={() => selectEvent(event.id)}
                 secondary={event.id !== selectedEvent.id}
-                style={styles.eventButton}
+                style={styles.miniEventButton}
               >
-                {event.region} · {event.eventDateUtc.slice(0, 4)}
+                {event.region}
               </ActionButton>
             ))}
           </View>
-          <Text style={styles.eventName}>{selectedEvent.name}</Text>
+        </View>
+      </View>
 
-          <View style={styles.coordinateFields}>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Latitude</Text>
-              <TextInput
-                accessibilityLabel="Latitude"
-                keyboardType="numbers-and-punctuation"
-                onChangeText={setLatitudeInput}
-                style={styles.input}
-                value={latitudeInput}
-              />
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Longitude</Text>
-              <TextInput
-                accessibilityLabel="Longitude"
-                keyboardType="numbers-and-punctuation"
-                onChangeText={setLongitudeInput}
-                style={styles.input}
-                value={longitudeInput}
-              />
-            </View>
+      {/* Main Canvas: Map */}
+      <View style={styles.mapContainer}>
+        <MapPanel
+          bounds={selectedEvent.mapBounds}
+          candidates={
+            finder.state === "result" && finder.result.status === "success"
+              ? finder.result.value.candidates.map(
+                  (candidate) => candidate.location,
+                )
+              : []
+          }
+          centerLine={selectedEvent.centerLine}
+          location={location}
+          onLocationChange={(nextLocation) => selectLocation(nextLocation)}
+        />
+
+        {/* Floating Info Card (Bottom-Left on Web, Overlaid on Mobile) */}
+        <View style={styles.floatingCard}>
+          <View style={styles.floatingHeader}>
+            <Text style={styles.floatingTitle}>Current Point</Text>
+            <Text style={styles.floatingLocation}>
+              {location.latitude.toFixed(3)}°N, {Math.abs(location.longitude).toFixed(3)}°E
+            </Text>
           </View>
-          {locationError ? <Text style={styles.warning}>{locationError}</Text> : null}
-          <View style={styles.actions}>
-            <ActionButton onPress={useCoordinates}>Analyse coordinates</ActionButton>
-            <ActionButton
-              disabled={gettingLocation}
-              onPress={() => void useDeviceLocation()}
-              secondary
-            >
-              {gettingLocation ? "Finding location…" : "Use my location"}
+          
+          {eclipse ? (
+            <View style={styles.floatingMetrics}>
+              <View style={styles.floatingMetric}>
+                <Text style={styles.floatingMetricValue}>
+                  {(eclipse.obscuration * 100).toFixed(0)}%
+                </Text>
+                <Text style={styles.floatingMetricLabel}>Obscured</Text>
+              </View>
+              <View style={styles.floatingMetric}>
+                <Text style={styles.floatingMetricValue}>
+                  {eclipse.centerLineDistanceKm === null
+                    ? "—"
+                    : `${eclipse.centerLineDistanceKm.toFixed(0)} km`}
+                </Text>
+                <Text style={styles.floatingMetricLabel}>to Path</Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.floatingActions}>
+            <ActionButton onPress={() => setPanelOpen(!panelOpen)} secondary>
+              {panelOpen ? "Hide" : "Horizon"}
+            </ActionButton>
+            <ActionButton onPress={() => void findLocations(selectedEvent, location)} secondary>
+              Find
             </ActionButton>
           </View>
-          <View style={styles.mapFrame}>
-            <MapPanel
-              bounds={selectedEvent.mapBounds}
-              candidates={
-                finder.state === "result" && finder.result.status === "success"
-                  ? finder.result.value.candidates.map(
-                      (candidate) => candidate.location,
-                    )
-                  : []
-              }
-              centerLine={selectedEvent.centerLine}
-              location={location}
-              onLocationChange={(nextLocation) => selectLocation(nextLocation)}
-            />
-          </View>
-          {Platform.OS === "web" ? (
-            <Text style={styles.smallMuted}>
-              Tap the map to set the rough search centre. Blue: selected point.
-              Purple: top candidate. Green: other candidates. Gold line:
-              NASA-derived centre line.
-            </Text>
-          ) : null}
-          <LocationFinderPanel
-            finder={finder}
-            onFind={() => void findLocations(selectedEvent, location)}
-            onSelect={(candidate) => selectLocation(candidate.location, true)}
-          />
-        </Card>
+        </View>
+      </View>
 
-        <Card eyebrow="02" title="Eclipse at this point">
-          {analysis.eclipse.status === "error" ||
-          analysis.eclipse.status === "unavailable" ? (
-            <Text style={styles.warning}>{analysis.eclipse.reason}</Text>
-          ) : eclipse ? (
+      {/* Coordinate Input Bar (Always Accessible) */}
+      <View style={styles.inputBar}>
+        <TextInput
+          accessibilityLabel="Latitude"
+          keyboardType="numbers-and-punctuation"
+          onChangeText={setLatitudeInput}
+          placeholder="Lat"
+          placeholderTextColor={theme.color.muted}
+          style={styles.miniInput}
+          value={latitudeInput}
+        />
+        <TextInput
+          accessibilityLabel="Longitude"
+          keyboardType="numbers-and-punctuation"
+          onChangeText={setLongitudeInput}
+          placeholder="Lon"
+          placeholderTextColor={theme.color.muted}
+          style={styles.miniInput}
+          value={longitudeInput}
+        />
+        <ActionButton onPress={useCoordinates} style={styles.goButton}>Go</ActionButton>
+        <ActionButton
+          disabled={gettingLocation}
+          onPress={() => void useDeviceLocation()}
+          secondary
+          style={styles.locationButton}
+        >
+          📍
+        </ActionButton>
+      </View>
+
+      {/* Swipeable Horizon Panel */}
+      <Animated.View
+        style={[
+          styles.horizonPanel,
+          {
+            transform: [
+              {
+                translateY: panelYOffset.interpolate({
+                  inputRange: [-panelHeight, 0],
+                  outputRange: [0, panelHeight],
+                  extrapolate: "clamp",
+                }),
+              },
+            ],
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.panelHandle} />
+        <ScrollView style={styles.panelContent} showsVerticalScrollIndicator={false}>
+          <Text style={styles.panelTitle}>Sky at Maximum Eclipse</Text>
+
+          {/* Horizon Simulator */}
+          {elevation && eclipse ? (
             <>
-              <View style={styles.metrics}>
-                <Metric label="Local eclipse" value={eclipse.kind.toUpperCase()} />
-                <Metric
-                  label="Sun obscured"
-                  value={`${(eclipse.obscuration * 100).toFixed(2)}%`}
-                />
-                <Metric label="Magnitude" value={eclipse.magnitude.toFixed(4)} />
-                <Metric
-                  label="Centre-line distance"
-                  value={
-                    eclipse.centerLineDistanceKm === null
-                      ? "—"
-                      : `${eclipse.centerLineDistanceKm.toFixed(1)} km`
-                  }
-                />
-                <Metric
-                  label="Totality duration"
-                  value={formatDuration(eclipse.totalityDurationSeconds)}
+              <View style={styles.horizonFrame}>
+                <HorizonSimulator
+                  contacts={eclipse.contacts}
+                  elevation={elevation}
+                  location={location}
                 />
               </View>
-              <View style={styles.rows}>
+
+              <View style={styles.panelMetrics}>
+                <Metric
+                  label="Observer elevation"
+                  value={`${Math.round(elevation.observerElevationMeters)} m`}
+                />
+                <Metric
+                  label="Terrain FOV"
+                  value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
+                />
+              </View>
+
+              {/* Contact Times */}
+              <View style={styles.contactsSection}>
+                <Text style={styles.sectionTitle}>Contact Times</Text>
                 {CONTACT_IDS.map((contactId) => (
                   <ContactRow
                     contact={eclipse.contacts[contactId]}
@@ -382,74 +446,23 @@ export default function App() {
                   />
                 ))}
               </View>
-              <Text style={styles.footnote}>
-                UTC/solar calculations: Astronomy Engine. Centre line: simplified
-                regional polyline derived from the linked NASA path table.
-              </Text>
             </>
-          ) : null}
-        </Card>
-
-        <Card eyebrow="03" title="Live observer sky and terrain horizon">
-          <RemoteMessage
-            data={analysis.elevation}
-            idle="Choose a valid eclipse location to load elevation."
-          />
-          {elevation && eclipse ? (
-            <>
-              <View style={styles.metrics}>
-                <Metric
-                  label="Observer elevation"
-                  value={`${Math.round(elevation.observerElevationMeters)} m`}
-                />
-                <Metric
-                  label="Terrain field of view"
-                  value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
-                />
-                <Metric
-                  label="Azimuth samples"
-                  value={String(elevation.skyline.samples.length)}
-                />
-              </View>
-              <HorizonSimulator
-                contacts={eclipse.contacts}
-                elevation={elevation}
-                location={location}
-              />
-              <Text style={styles.footnote}>
-                Terrain skyline is centred on the Sun at maximum and sampled out
-                to 20 km. Elevation retrieved {formatUtc(
-                  elevation.retrievedUtc,
-                )}. This is a terrain simulation, not a visibility guarantee.
-              </Text>
-            </>
-          ) : null}
-        </Card>
-
-        <Card eyebrow="04" title="Cloud forecast">
-          <RemoteMessage
-            data={analysis.cloud}
-            idle="Cloud data loads after location analysis."
-          />
-          {cloud ? <CloudDetails cloud={cloud} /> : null}
-        </Card>
-
-        <Card eyebrow="05" title="Audio timeline">
-          {eclipse ? (
-            <AudioTimelinePanel
-              contacts={eclipse.contacts}
-              elevationMeters={elevation?.observerElevationMeters ?? 0}
-              location={location}
-            />
           ) : (
-            <Text style={styles.muted}>
-              Select a location with eclipse contacts to configure audio.
-            </Text>
+            <Text style={styles.muted}>Select a location to load elevation data.</Text>
           )}
-        </Card>
 
-        <Card eyebrow="06" title="Sources and sharing">
+          {/* Additional Info Tabs */}
+          <View style={styles.tabsSection}>
+            {cloud ? (
+              <>
+                <Text style={styles.sectionTitle}>Weather</Text>
+                <CloudDetails cloud={cloud} />
+              </>
+            ) : null}
+          </View>
+
           <View style={styles.sourceList}>
+            <Text style={styles.sectionTitle}>Sources</Text>
             {selectedEvent.sources.map((source) => (
               <Text
                 accessibilityRole="link"
@@ -467,42 +480,25 @@ export default function App() {
               }
               style={styles.link}
             >
-              Open-Meteo elevation and Copernicus DEM ↗
-            </Text>
-            <Text
-              accessibilityRole="link"
-              onPress={() => void Linking.openURL(OPEN_METEO_FORECAST_SOURCE_URL)}
-              style={styles.link}
-            >
-              Open-Meteo weather forecast ↗
-            </Text>
-            <Text
-              accessibilityRole="link"
-              onPress={() =>
-                void Linking.openURL(OPENSTREETMAP_SOURCE_URL)
-              }
-              style={styles.link}
-            >
-              OpenStreetMap data and attribution ↗
+              Open-Meteo ↗
             </Text>
           </View>
-          <View style={styles.shareBlock}>
-            {qrCode ? (
-              <Image
-                accessibilityLabel="QR code for this eclipse location"
-                source={{ uri: qrCode }}
-                style={styles.qrCode}
-              />
-            ) : qrError ? (
-              <Text style={styles.warning}>{qrError}</Text>
-            ) : (
-              <ActivityIndicator color={theme.color.accent} />
-            )}
-            <View style={styles.shareText}>
-              <Text style={styles.rowTitle}>Share this exact event and point</Text>
-              <Text numberOfLines={3} selectable style={styles.shareUrl}>
-                {shareUrl}
-              </Text>
+
+          {/* Share Section */}
+          <View style={styles.shareSection}>
+            <Text style={styles.sectionTitle}>Share</Text>
+            <View style={styles.shareBlock}>
+              {qrCode ? (
+                <Image
+                  accessibilityLabel="QR code"
+                  source={{ uri: qrCode }}
+                  style={styles.qrCode}
+                />
+              ) : qrError ? (
+                <Text style={styles.warning}>{qrError}</Text>
+              ) : (
+                <ActivityIndicator color={theme.color.accent} />
+              )}
               <ActionButton
                 onPress={() => {
                   void copyText(shareUrl).then((copied) => {
@@ -515,8 +511,10 @@ export default function App() {
               </ActionButton>
             </View>
           </View>
-        </Card>
-      </ScrollView>
+
+          <View style={styles.panelBottom} />
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -542,109 +540,230 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     flex: 1,
   },
-  page: {
-    alignSelf: "center",
-    gap: theme.space.large,
-    maxWidth: 1180,
+  header: {
+    backgroundColor: theme.color.surfaceRaised,
+    borderBottomColor: theme.color.border,
+    borderBottomWidth: 1,
     paddingHorizontal: theme.space.medium,
-    paddingVertical: theme.space.xlarge,
-    width: "100%",
+    paddingVertical: theme.space.small,
   },
-  hero: {
-    gap: theme.space.small,
-    maxWidth: 760,
+  headerContent: {
+    marginBottom: theme.space.small,
   },
-  kicker: {
-    color: theme.color.accent,
-    fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 1.4,
-  },
-  heading: {
+  headerTitle: {
     color: theme.color.text,
-    fontSize: 42,
-    fontWeight: "800",
-    letterSpacing: -1.2,
-  },
-  lede: {
-    color: theme.color.muted,
     fontSize: 18,
-    lineHeight: 27,
+    fontWeight: "800",
   },
-  eventOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.small,
-  },
-  eventButton: {
-    flexGrow: 1,
-  },
-  eventName: {
-    color: theme.color.text,
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  coordinateFields: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.medium,
-  },
-  field: {
-    flex: 1,
-    minWidth: 180,
-  },
-  fieldLabel: {
+  headerSubtitle: {
     color: theme.color.muted,
     fontSize: 13,
-    fontWeight: "700",
+    marginTop: 2,
+  },
+  headerControls: {
+    gap: theme.space.small,
+  },
+  eventSelector: {
+    flexDirection: "row",
+    gap: theme.space.xsmall,
+  },
+  miniEventButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  mapContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  floatingCard: {
+    backgroundColor: theme.color.surfaceRaised,
+    borderRadius: theme.radius.medium,
+    bottom: 80,
+    left: theme.space.medium,
+    paddingHorizontal: theme.space.small,
+    paddingVertical: theme.space.small,
+    position: "absolute",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    width: 180,
+  },
+  floatingHeader: {
     marginBottom: theme.space.xsmall,
   },
-  input: {
+  floatingTitle: {
+    color: theme.color.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  floatingLocation: {
+    color: theme.color.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  floatingMetrics: {
+    flexDirection: "row",
+    gap: theme.space.xsmall,
+    marginBottom: theme.space.small,
+  },
+  floatingMetric: {
+    flex: 1,
+  },
+  floatingMetricValue: {
+    color: theme.color.accent,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  floatingMetricLabel: {
+    color: theme.color.muted,
+    fontSize: 10,
+    marginTop: 1,
+  },
+  floatingActions: {
+    flexDirection: "row",
+    gap: theme.space.xsmall,
+  },
+  inputBar: {
+    backgroundColor: theme.color.surfaceRaised,
+    borderTopColor: theme.color.border,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: theme.space.xsmall,
+    paddingHorizontal: theme.space.small,
+    paddingVertical: theme.space.xsmall,
+  },
+  miniInput: {
     backgroundColor: theme.color.background,
     borderColor: theme.color.border,
     borderRadius: theme.radius.small,
     borderWidth: 1,
     color: theme.color.text,
-    fontSize: 16,
-    minHeight: 46,
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  goButton: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
   },
-  actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.small,
+  locationButton: {
+    paddingHorizontal: 10,
   },
-  mapFrame: {
+  horizonPanel: {
+    backgroundColor: theme.color.surface,
+    borderTopColor: theme.color.border,
+    borderTopLeftRadius: theme.radius.large,
+    borderTopRightRadius: theme.radius.large,
+    borderTopWidth: 1,
+    height: "60%",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  panelHandle: {
+    alignSelf: "center",
+    backgroundColor: theme.color.border,
+    borderRadius: 2,
+    height: 4,
+    marginTop: theme.space.small,
+    marginBottom: theme.space.small,
+    width: 40,
+  },
+  panelContent: {
+    flex: 1,
+    paddingHorizontal: theme.space.medium,
+  },
+  panelTitle: {
+    color: theme.color.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: theme.space.medium,
+  },
+  horizonFrame: {
     borderColor: theme.color.border,
     borderRadius: theme.radius.medium,
     borderWidth: 1,
+    marginBottom: theme.space.large,
     overflow: "hidden",
+    height: 200,
   },
-  metrics: {
+  panelMetrics: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: theme.space.small,
+    marginBottom: theme.space.large,
   },
+  sectionTitle: {
+    color: theme.color.text,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: theme.space.small,
+    marginTop: theme.space.medium,
+  },
+  contactsSection: {
+    marginBottom: theme.space.large,
+    borderTopColor: theme.color.border,
+    borderTopWidth: 1,
+    paddingTop: theme.space.medium,
+  },
+  tabsSection: {
+    marginBottom: theme.space.large,
+  },
+  sourceList: {
+    alignItems: "flex-start",
+    gap: theme.space.xsmall,
+    marginBottom: theme.space.large,
+    paddingVertical: theme.space.medium,
+    borderTopColor: theme.color.border,
+    borderTopWidth: 1,
+  },
+  link: {
+    color: theme.color.sky,
+    fontSize: 14,
+    lineHeight: 20,
+    textDecorationLine: "underline",
+  },
+  shareSection: {
+    marginBottom: theme.space.xlarge,
+    paddingVertical: theme.space.medium,
+    borderTopColor: theme.color.border,
+    borderTopWidth: 1,
+  },
+  shareBlock: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: theme.space.medium,
+  },
+  qrCode: {
+    borderRadius: theme.radius.small,
+    height: 100,
+    width: 100,
+  },
+  panelBottom: {
+    height: theme.space.xlarge,
+  },
+  
+  // Reused components
   metric: {
     backgroundColor: theme.color.surfaceRaised,
     borderRadius: theme.radius.small,
     flexGrow: 1,
-    minWidth: 135,
+    minWidth: 100,
     padding: 12,
   },
   metricValue: {
     color: theme.color.text,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
   },
   metricLabel: {
     color: theme.color.muted,
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 3,
-  },
-  rows: {
-    gap: 0,
   },
   contactRow: {
     alignItems: "flex-start",
@@ -695,36 +814,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: theme.space.small,
-  },
-  sourceList: {
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  link: {
-    color: theme.color.sky,
-    fontSize: 14,
-    lineHeight: 20,
-    textDecorationLine: "underline",
-  },
-  shareBlock: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: theme.space.large,
-  },
-  qrCode: {
-    borderRadius: theme.radius.small,
-    height: 176,
-    width: 176,
-  },
-  shareText: {
-    flex: 1,
-    gap: theme.space.small,
-    minWidth: 220,
-  },
-  shareUrl: {
-    color: theme.color.muted,
-    fontSize: 12,
-    lineHeight: 17,
   },
 });
