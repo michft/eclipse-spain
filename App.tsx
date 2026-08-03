@@ -393,28 +393,40 @@ export default function App() {
             {/* Horizon Simulator */}
             {elevation && eclipse ? (
               <>
-                <View style={styles.horizonFrame}>
-                  <HorizonSimulator
-                    contacts={eclipse.contacts}
-                    elevation={elevation}
-                    location={location}
-                  />
+                {/* Simulator Section */}
+                <View style={styles.simulatorSection}>
+                  <Text style={styles.subSectionLabel}>Observer Sky View</Text>
+                  <View style={styles.horizonFrame}>
+                    <HorizonSimulator
+                      contacts={eclipse.contacts}
+                      elevation={elevation}
+                      location={location}
+                    />
+                  </View>
                 </View>
 
-                <View style={styles.panelMetrics}>
-                  <Metric
-                    label="Observer elevation"
-                    value={`${Math.round(elevation.observerElevationMeters)} m`}
-                  />
-                  <Metric
-                    label="Terrain FOV"
-                    value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
-                  />
+                {/* Location & Elevation Metrics */}
+                <View style={styles.metricsGrid}>
+                  <View style={styles.metricBox}>
+                    <Text style={styles.metricLabel}>Observer elevation</Text>
+                    <Text style={styles.metricValueLarge}>
+                      {Math.round(elevation.observerElevationMeters)} m
+                    </Text>
+                  </View>
+                  <View style={styles.metricBox}>
+                    <Text style={styles.metricLabel}>Terrain FOV</Text>
+                    <Text style={styles.metricValueLarge}>
+                      {elevation.skyline.fieldOfViewDegrees.toFixed(0)}°
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Contact Times */}
                 <View style={styles.contactsSection}>
                   <Text style={styles.sectionTitle}>Contact Times</Text>
+                  <Text style={styles.contactsDescription}>
+                    When eclipse contacts occur at this location
+                  </Text>
                   {CONTACT_IDS.map((contactId) => (
                     <ContactRow
                       contact={eclipse.contacts[contactId]}
@@ -655,18 +667,48 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: theme.space.small,
   },
+  simulatorSection: {
+    marginBottom: theme.space.large,
+  },
+  subSectionLabel: {
+    color: theme.color.muted,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: theme.space.small,
+  },
   horizonFrame: {
     borderColor: theme.color.border,
     borderRadius: theme.radius.medium,
     borderWidth: 1,
-    marginBottom: theme.space.large,
+    marginBottom: theme.space.medium,
     overflow: "hidden",
-    height: 200,
+    height: 320,
   },
-  panelMetrics: {
+  metricsGrid: {
     flexDirection: "row",
-    gap: theme.space.small,
+    gap: theme.space.medium,
     marginBottom: theme.space.large,
+  },
+  metricBox: {
+    flex: 1,
+    backgroundColor: theme.color.surfaceRaised,
+    borderRadius: theme.radius.small,
+    padding: theme.space.small,
+    borderColor: theme.color.border,
+    borderWidth: 1,
+  },
+  metricLabel: {
+    color: theme.color.muted,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  metricValueLarge: {
+    color: theme.color.accent,
+    fontSize: 20,
+    fontWeight: "800",
   },
   sectionTitle: {
     color: theme.color.text,
@@ -674,6 +716,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: theme.space.small,
     marginTop: theme.space.medium,
+  },
+  contactsDescription: {
+    color: theme.color.muted,
+    fontSize: 13,
+    marginBottom: theme.space.medium,
   },
   contactsSection: {
     marginBottom: theme.space.large,
