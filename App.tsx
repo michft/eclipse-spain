@@ -408,13 +408,13 @@ export default function App() {
                 {/* Location & Elevation Metrics */}
                 <View style={styles.metricsGrid}>
                   <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>Observer elevation</Text>
+                    <Text style={styles.horizonMetricLabel}>Observer elevation</Text>
                     <Text style={styles.metricValueLarge}>
                       {Math.round(elevation.observerElevationMeters)} m
                     </Text>
                   </View>
                   <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>Terrain FOV</Text>
+                    <Text style={styles.horizonMetricLabel}>Terrain FOV</Text>
                     <Text style={styles.metricValueLarge}>
                       {elevation.skyline.fieldOfViewDegrees.toFixed(0)}°
                     </Text>
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     borderColor: theme.color.border,
     borderWidth: 1,
   },
-  metricLabel: {
+  horizonMetricLabel: {
     color: theme.color.muted,
     fontSize: 12,
     fontWeight: "600",
