@@ -8,7 +8,7 @@ import {
 } from "./overpass";
 import { createRequestTimeout } from "./requestTimeout";
 
-const OVERPASS_ATTEMPT_TIMEOUT_MILLISECONDS = 30_000;
+const OVERPASS_TOTAL_TIMEOUT_MILLISECONDS = 30_000;
 const TRANSPORT_REQUEST_LIMIT = 10;
 const TRANSPORT_RATE_WINDOW_MILLISECONDS = 1_000;
 
@@ -84,22 +84,18 @@ const fetchProvider = async (
   providerUrl: string,
   body: string,
   fetchFunction: FetchFunction,
+  signal: AbortSignal,
 ): Promise<Response> => {
-  const timeout = createRequestTimeout(OVERPASS_ATTEMPT_TIMEOUT_MILLISECONDS);
-  try {
-    return await fetchFunction(providerUrl, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": OVERPASS_USER_AGENT,
-      },
-      body,
-      signal: timeout.signal,
-    });
-  } finally {
-    timeout.clear();
-  }
+  return fetchFunction(providerUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": OVERPASS_USER_AGENT,
+    },
+    body,
+    signal,
+  });
 };
 
 const releaseResponse = async (response: Response): Promise<void> => {
@@ -133,27 +129,46 @@ export const handleTransportRequest = async (
     });
   }
 
+  const timeout = createRequestTimeout(OVERPASS_TOTAL_TIMEOUT_MILLISECONDS);
   try {
     const body = `data=${encodeURIComponent(makeTransportQuery(location))}`;
-    const primary = await fetchProvider(
-      OVERPASS_PROVIDER_URL,
-      body,
-      fetchFunction,
-    );
-    let response = primary;
-    if (!primary.ok && primary.status >= 500) {
+    let primary: Response | null = null;
+    try {
+      primary = await fetchProvider(
+        OVERPASS_PROVIDER_URL,
+        body,
+        fetchFunction,
+        timeout.signal,
+      );
+    } catch {
+      // Network and timeout failures use the same bounded fallback path.
+    }
+    let response: Response;
+    if (primary === null) {
+      response = await fetchProvider(
+        OVERPASS_FALLBACK_PROVIDER_URL,
+        body,
+        fetchFunction,
+        timeout.signal,
+      );
+    } else if (!primary.ok && primary.status >= 500) {
       await releaseResponse(primary);
       response = await fetchProvider(
         OVERPASS_FALLBACK_PROVIDER_URL,
         body,
         fetchFunction,
+        timeout.signal,
       );
+    } else {
+      response = primary;
     }
+    const retryAfter = response.headers.get("Retry-After");
     return new Response(response.body, {
       status: response.status,
       headers: {
         "Cache-Control": "no-store",
         "Content-Type": response.headers.get("Content-Type") ?? "application/json",
+        ...(retryAfter ? { "Retry-After": retryAfter } : {}),
       },
     });
   } catch (error: unknown) {
@@ -163,6 +178,7 @@ export const handleTransportRequest = async (
       timedOut ? 504 : 502,
     );
   } finally {
+    timeout.clear();
     permit.release();
   }
 };

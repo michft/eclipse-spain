@@ -1,12 +1,16 @@
 import type { FetchFunction } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
-import { fetchWithRateLimitBackoff } from "./rateLimitBackoff";
+import {
+  DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS,
+  fetchWithRateLimitBackoff,
+} from "./rateLimitBackoff";
 
 const MAX_CLOCK_SKEW_MILLISECONDS = 5_000;
 const DATE_HEADER_PRECISION_MILLISECONDS = 1_000;
 const UNVERIFIED_CLOCK_REASON =
   "Device time could not be verified against network time. Check it before relying on audio cues.";
-const CLOCK_CHECK_TIMEOUT_MILLISECONDS = 5_000;
+const CLOCK_CHECK_TIMEOUT_MILLISECONDS =
+  DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS + 6_000;
 
 export type ClockTrustResult =
   | { status: "trusted"; differenceMilliseconds: number }
