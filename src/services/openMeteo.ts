@@ -7,6 +7,10 @@ import {
 } from "../domain/horizon";
 import type { FetchFunction, ServiceResult } from "./result";
 import { createRequestTimeout } from "./requestTimeout";
+import {
+  DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS,
+  fetchWithRateLimitBackoff,
+} from "./rateLimitBackoff";
 
 export const OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation";
 export const OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
@@ -20,7 +24,8 @@ const HORIZON_AZIMUTH_OFFSETS_DEGREES = [
   26.667, 33.333, 40,
 ] as const;
 const FORECAST_RANGE_DAYS = 16;
-const OPEN_METEO_TIMEOUT_MILLISECONDS = 10_000;
+const OPEN_METEO_TIMEOUT_MILLISECONDS =
+  DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS + 11_000;
 
 interface ElevationResponse {
   elevation: number[];
@@ -102,9 +107,11 @@ export const fetchElevationProfile = async (
 
   const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_ELEVATION_URL}?${query}`, {
-      signal: timeout.signal,
-    });
+    const response = await fetchWithRateLimitBackoff(
+      fetchFunction,
+      `${OPEN_METEO_ELEVATION_URL}?${query}`,
+      { signal: timeout.signal },
+    );
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }
@@ -256,9 +263,11 @@ export const fetchCloudForecast = async (
 
   const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchFunction(`${OPEN_METEO_FORECAST_URL}?${query}`, {
-      signal: timeout.signal,
-    });
+    const response = await fetchWithRateLimitBackoff(
+      fetchFunction,
+      `${OPEN_METEO_FORECAST_URL}?${query}`,
+      { signal: timeout.signal },
+    );
     if (!response.ok) {
       return { status: "error", reason: await responseReason(response) };
     }

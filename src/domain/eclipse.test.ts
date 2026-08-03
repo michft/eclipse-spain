@@ -111,6 +111,25 @@ describe("local eclipse calculations", () => {
     ).toBe(0);
   });
 
+  it("matches observer-sky obscuration during a partial overlap", () => {
+    const location = { latitude: 40.4168, longitude: -3.7038 };
+    const eclipse = calculateLocalEclipse(
+      getEclipseEvent("spain-2026"),
+      location,
+    );
+    expect(eclipse.status).toBe("success");
+    if (eclipse.status !== "success" || !eclipse.value.contacts.maximum) {
+      return;
+    }
+    const date = new Date(eclipse.value.contacts.maximum.utc);
+    const obscuration = calculateSolarObscuration(location, date);
+    const sky = calculateObserverSky(location, date);
+
+    expect(obscuration).toBeGreaterThan(0);
+    expect(obscuration).toBeLessThan(1);
+    expect(sky?.obscuration).toBeCloseTo(obscuration, 9);
+  });
+
   it("calculates live Sun and Moon positions for the observer sky", () => {
     const location = { latitude: 41.8167, longitude: -3.185 };
     const eclipse = calculateLocalEclipse(

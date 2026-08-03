@@ -42,7 +42,6 @@ export const useLocationAnalysis = (
     idleState(initialEvent, initialLocation),
   );
   const requestNumber = useRef(0);
-  const elevationRequestNumber = useRef(0);
 
   const requestElevation = useCallback(
     async (
@@ -50,16 +49,12 @@ export const useLocationAnalysis = (
       location: GeoPoint,
       horizonAzimuthDegrees: number,
       currentRequest: number,
-      currentElevationRequest: number,
     ) => {
       const elevation = await fetchElevationProfile(
         location,
         horizonAzimuthDegrees,
       );
-      if (
-        requestNumber.current !== currentRequest ||
-        elevationRequestNumber.current !== currentElevationRequest
-      ) {
+      if (requestNumber.current !== currentRequest) {
         return;
       }
       setAnalysis((current) => ({
@@ -90,8 +85,6 @@ export const useLocationAnalysis = (
     async (event: EclipseEventDefinition, location: GeoPoint) => {
       const currentRequest = requestNumber.current + 1;
       requestNumber.current = currentRequest;
-      const currentElevationRequest = elevationRequestNumber.current + 1;
-      elevationRequestNumber.current = currentElevationRequest;
       const initialEclipse = calculateLocalEclipse(event, location);
       setAnalysis({
         eclipse: initialEclipse,
@@ -122,7 +115,6 @@ export const useLocationAnalysis = (
         location,
         maximum.sunAzimuthDegrees,
         currentRequest,
-        currentElevationRequest,
       );
       const cloudRequest = fetchCloudForecast(location, maximum.utc).then((cloud) => {
         if (requestNumber.current !== currentRequest) {

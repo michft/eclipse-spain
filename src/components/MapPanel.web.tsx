@@ -92,7 +92,7 @@ export const MapPanel = ({
         key={`${candidate.latitude}:${candidate.longitude}`}
         pathOptions={{
           color: "#081018",
-          fillColor: index === 0 ? "#ffc94d" : "#65d6a6",
+          fillColor: index === 0 ? "#d68cff" : "#65d6a6",
           fillOpacity: 1,
         }}
         radius={index === 0 ? 8 : 6}

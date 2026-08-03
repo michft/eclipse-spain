@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -330,13 +331,16 @@ export default function App() {
               }
               centerLine={selectedEvent.centerLine}
               location={location}
-              onLocationChange={selectLocation}
+              onLocationChange={(nextLocation) => selectLocation(nextLocation)}
             />
           </View>
-          <Text style={styles.smallMuted}>
-            Tap the map to set the rough search centre. Gold line: NASA-derived
-            centre line.
-          </Text>
+          {Platform.OS === "web" ? (
+            <Text style={styles.smallMuted}>
+              Tap the map to set the rough search centre. Blue: selected point.
+              Purple: top candidate. Green: other candidates. Gold line:
+              NASA-derived centre line.
+            </Text>
+          ) : null}
           <LocationFinderPanel
             finder={finder}
             onFind={() => void findLocations(selectedEvent, location)}

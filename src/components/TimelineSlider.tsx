@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import Slider from "@react-native-community/slider";
+import { StyleSheet } from "react-native";
 
 import { theme } from "../styles/theme";
 
@@ -9,13 +10,26 @@ interface TimelineSliderProps {
   value: number;
 }
 
-export const TimelineSlider = (_props: TimelineSliderProps) => (
-  <View style={styles.container}>
-    <Text style={styles.text}>Timeline scrubbing is available in the web app.</Text>
-  </View>
+export const TimelineSlider = ({
+  maximum,
+  minimum,
+  onChange,
+  value,
+}: TimelineSliderProps) => (
+  <Slider
+    accessibilityLabel="Simulation time"
+    maximumTrackTintColor={theme.color.border}
+    maximumValue={maximum}
+    minimumTrackTintColor={theme.color.accent}
+    minimumValue={minimum}
+    onValueChange={onChange}
+    step={1000}
+    style={styles.slider}
+    thumbTintColor={theme.color.accent}
+    value={value}
+  />
 );
 
 const styles = StyleSheet.create({
-  container: { paddingVertical: theme.space.small },
-  text: { color: theme.color.muted, fontSize: 12 },
+  slider: { height: 40, width: "100%" },
 });
