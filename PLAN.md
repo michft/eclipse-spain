@@ -130,8 +130,10 @@ The horizon feature is explanatory, not a verdict.
   altitude guides without relying on colour alone.
 - Sample terrain through 180°, show N/E/S/W bearings, and default the visible
   field of view to 75°.
-- Allow a 30°–180° field of view using the visible slider, mouse wheel over the
-  chart, or keyboard controls.
+- Allow a 30°–180° field of view using the visible slider, mouse wheel while the
+  chart has focus, or keyboard controls. Unfocused wheel input scrolls the page.
+- Extend the horizon chart to both window edges while keeping its controls and
+  explanatory text padded.
 - Keep play/pause, time scrubbing, contact jumps, and playback speed controls
   visibly below the chart on phone and desktop layouts.
 - Update UTC, obscuration, azimuth, altitude, and terrain clearance as simulated

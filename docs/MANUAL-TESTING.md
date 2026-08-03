@@ -50,9 +50,11 @@ then run every check below against that exact deployment.
   are fully visible below the chart on phone and desktop layouts.
 - Confirm every altitude guide has a degree label and the visible key names the
   Sun path, Moon path, terrain skyline, and astronomical horizon.
-- Confirm the horizon opens at 75°, shows N/E/S/W bearings, and adjusts from 30°
-  through 180° using the slider. On web, scroll over the chart and use keyboard
-  arrows; confirm the field of view changes without changing simulation time.
+- Confirm the horizon opens at 75°, shows N/E/S/W bearings, reaches both window
+  edges, and adjusts from 30° through 180° using the slider.
+- On web, scroll over the unfocused chart and confirm only the page moves. Focus
+  the chart, scroll again, and confirm only the field of view changes. Confirm
+  keyboard arrows change field of view without changing simulation time.
 - Confirm no 2° pass/fail or C3+60 warning appears.
 - Block one provider in browser tools and confirm other result cards survive.
 - For a far-future event, confirm cloud says the forecast is not available yet.
