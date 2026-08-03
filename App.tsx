@@ -254,11 +254,6 @@ export default function App() {
       ? analysis.cloud.result.value
       : null;
 
-  // DEBUG: Log state changes
-  useEffect(() => {
-    console.log("[v0] panelOpen state:", panelOpen);
-  }, [panelOpen]);
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
