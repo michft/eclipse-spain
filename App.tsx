@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -14,9 +14,7 @@ import {
 
 import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
-import { Card } from "./src/components/Card";
 import { HorizonSimulator } from "./src/components/HorizonSimulator";
-import { LocationFinderPanel } from "./src/components/LocationFinderPanel";
 import { MapPanel } from "./src/components/MapPanel";
 import {
   ECLIPSE_EVENTS,
@@ -51,7 +49,7 @@ import {
 import { theme } from "./src/styles/theme";
 
 const defaultLocation = (event: EclipseEventDefinition): GeoPoint =>
-  event.centerLine[Math.floor(event.centerLine.length / 2)] ?? event.mapCenter;
+  event.mapCenter;
 
 const formatUtc = (iso: string): string =>
   new Intl.DateTimeFormat("en-GB", {
@@ -77,6 +75,38 @@ const formatDuration = (seconds: number | null): string => {
   const wholeSeconds = Math.round(seconds);
   return `${Math.floor(wholeSeconds / 60)}m ${String(wholeSeconds % 60).padStart(2, "0")}s`;
 };
+
+const APP_PAGES = [
+  { id: "home", label: "Map" },
+  { id: "horizon", label: "Horizon" },
+  { id: "contacts", label: "Contact times" },
+  { id: "weather", label: "Weather" },
+  { id: "sources", label: "Sources" },
+  { id: "qr", label: "QR" },
+] as const;
+type AppPage = (typeof APP_PAGES)[number]["id"];
+
+const PageView = ({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+}) => (
+  <ScrollView
+    contentContainerStyle={styles.pageContent}
+    showsVerticalScrollIndicator={false}
+    style={styles.pageView}
+  >
+    <Text accessibilityRole="header" style={styles.pageTitle}>
+      {title}
+    </Text>
+    <Text style={styles.pageDescription}>{description}</Text>
+    {children}
+  </ScrollView>
+);
 
 const RemoteMessage = <T,>({
   data,
@@ -155,7 +185,7 @@ export default function App() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [activePage, setActivePage] = useState<AppPage>("home");
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
@@ -279,12 +309,28 @@ export default function App() {
               </ActionButton>
             ))}
           </View>
+          <ScrollView
+            contentContainerStyle={styles.pageNavigation}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+          >
+            {APP_PAGES.map((page) => (
+              <ActionButton
+                key={page.id}
+                onPress={() => setActivePage(page.id)}
+                secondary={activePage !== page.id}
+                style={styles.pageButton}
+              >
+                {page.label}
+              </ActionButton>
+            ))}
+          </ScrollView>
         </View>
       </View>
 
-      {/* Conditional View: Map or Horizon Panel */}
+      {/* One selected page; event and location state remain shared. */}
       <View style={styles.contentArea}>
-        {panelOpen ? null : (
+        {activePage === "home" ? (
           <View key="map-view" style={styles.contentWrapper}>
             {/* Map View */}
             <View style={styles.mapContainer}>
@@ -297,10 +343,20 @@ export default function App() {
                       )
                     : []
                 }
-                centerLine={selectedEvent.centerLine}
+                contours={selectedEvent.contours}
                 location={location}
                 onLocationChange={(nextLocation) => selectLocation(nextLocation)}
+                path={selectedEvent.path}
               />
+
+              <View pointerEvents="none" style={styles.mapLegend}>
+                <Text style={styles.mapLegendTitle}>Eclipse map</Text>
+                <Text style={styles.mapLegendText}>Amber area · 100% totality</Text>
+                <Text style={styles.mapLegendText}>Gold line · centre line</Text>
+                <Text style={styles.mapLegendText}>White lines · totality limits</Text>
+                <Text style={styles.mapLegendText}>Blue lines · partial obscuration</Text>
+                <Text style={styles.mapLegendText}>Green lines · maximum time UTC</Text>
+              </View>
 
               {/* Floating Info Card */}
               <View style={styles.floatingCard}>
@@ -332,7 +388,7 @@ export default function App() {
                 ) : null}
 
                 <View style={styles.floatingActions}>
-                  <ActionButton onPress={() => setPanelOpen(true)} secondary>
+                  <ActionButton onPress={() => setActivePage("horizon")} secondary>
                     Horizon
                   </ActionButton>
                   <ActionButton
@@ -378,22 +434,19 @@ export default function App() {
               </ActionButton>
             </View>
           </View>
-        )}
-        {!panelOpen ? null : (
-          /* Horizon View */
-          <ScrollView key="horizon-view" style={styles.horizonView} showsVerticalScrollIndicator={false}>
-            <View style={styles.horizonContainer}>
-              <View style={styles.horizonHeader}>
-                <Text style={styles.horizonTitle}>Sky at Maximum Eclipse</Text>
-                <ActionButton onPress={() => setPanelOpen(false)} secondary>
-                  ← Back to Map
-                </ActionButton>
-              </View>
+        ) : null}
 
-            {/* Horizon Simulator */}
+        {activePage === "horizon" ? (
+          <PageView
+            description="Animated Sun and Moon positions against the sampled terrain skyline."
+            title="Horizon"
+          >
+            <RemoteMessage
+              data={analysis.elevation}
+              idle="Select a location to load elevation data."
+            />
             {elevation && eclipse ? (
               <>
-                {/* Simulator Section */}
                 <View style={styles.simulatorSection}>
                   <Text style={styles.subSectionLabel}>Observer Sky View</Text>
                   <View style={styles.horizonFrame}>
@@ -420,13 +473,43 @@ export default function App() {
                     </Text>
                   </View>
                 </View>
+              </>
+            ) : null}
+          </PageView>
+        ) : null}
 
-                {/* Contact Times */}
+        <View
+          style={[
+            styles.pageHost,
+            activePage !== "contacts" && styles.hiddenPage,
+          ]}
+        >
+          <PageView
+            description="UTC and local contact times for the selected observing point."
+            title="Contact times"
+          >
+            {eclipse ? (
+              <>
+                <View style={styles.metrics}>
+                  <Metric label="Local eclipse" value={eclipse.kind.toUpperCase()} />
+                  <Metric
+                    label="Sun obscured"
+                    value={`${(eclipse.obscuration * 100).toFixed(2)}%`}
+                  />
+                  <Metric
+                    label="Centre-line distance"
+                    value={
+                      eclipse.centerLineDistanceKm === null
+                        ? "—"
+                        : `${eclipse.centerLineDistanceKm.toFixed(1)} km`
+                    }
+                  />
+                  <Metric
+                    label="Totality duration"
+                    value={formatDuration(eclipse.totalityDurationSeconds)}
+                  />
+                </View>
                 <View style={styles.contactsSection}>
-                  <Text style={styles.sectionTitle}>Contact Times</Text>
-                  <Text style={styles.contactsDescription}>
-                    When eclipse contacts occur at this location
-                  </Text>
                   {CONTACT_IDS.map((contactId) => (
                     <ContactRow
                       contact={eclipse.contacts[contactId]}
@@ -434,22 +517,40 @@ export default function App() {
                     />
                   ))}
                 </View>
+                <Text style={styles.sectionTitle}>Audio timeline</Text>
+                <AudioTimelinePanel
+                  contacts={eclipse.contacts}
+                  elevationMeters={elevation?.observerElevationMeters ?? 0}
+                  location={location}
+                />
               </>
-            ) : (
-              <Text style={styles.muted}>Select a location to load elevation data.</Text>
+            ) : analysis.eclipse.status === "success" ? null : (
+              <Text style={styles.warning}>{analysis.eclipse.reason}</Text>
             )}
+          </PageView>
+        </View>
 
-            {/* Weather Section */}
+        {activePage === "weather" ? (
+          <PageView
+            description="Cloud forecast nearest eclipse maximum for this location."
+            title="Weather"
+          >
+            <RemoteMessage
+              data={analysis.cloud}
+              idle="Select a location to load its cloud forecast."
+            />
             {cloud ? (
-              <View style={styles.tabsSection}>
-                <Text style={styles.sectionTitle}>Weather</Text>
-                <CloudDetails cloud={cloud} />
-              </View>
+              <CloudDetails cloud={cloud} />
             ) : null}
+          </PageView>
+        ) : null}
 
-            {/* Sources */}
+        {activePage === "sources" ? (
+          <PageView
+            description="Original and derived sources used for comparison."
+            title="Sources"
+          >
             <View style={styles.sourceList}>
-              <Text style={styles.sectionTitle}>Sources</Text>
               {selectedEvent.sources.map((source) => (
                 <Text
                   accessibilityRole="link"
@@ -467,13 +568,34 @@ export default function App() {
                 }
                 style={styles.link}
               >
-                Open-Meteo ↗
+                Open-Meteo elevation ↗
+              </Text>
+              <Text
+                accessibilityRole="link"
+                onPress={() =>
+                  void Linking.openURL(OPEN_METEO_FORECAST_SOURCE_URL)
+                }
+                style={styles.link}
+              >
+                Open-Meteo forecast ↗
+              </Text>
+              <Text
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL(OPENSTREETMAP_SOURCE_URL)}
+                style={styles.link}
+              >
+                OpenStreetMap attribution ↗
               </Text>
             </View>
+          </PageView>
+        ) : null}
 
-            {/* Share Section */}
+        {activePage === "qr" ? (
+          <PageView
+            description="Share this event and observing point with another device."
+            title="QR"
+          >
             <View style={styles.shareSection}>
-              <Text style={styles.sectionTitle}>Share</Text>
               <View style={styles.shareBlock}>
                 {qrCode ? (
                   <Image
@@ -497,12 +619,12 @@ export default function App() {
                   {copyState}
                 </ActionButton>
               </View>
+              <Text selectable style={styles.shareUrl}>
+                {shareUrl}
+              </Text>
             </View>
-
-            <View style={styles.panelBottom} />
-          </View>
-          </ScrollView>
-        )}
+          </PageView>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -560,11 +682,46 @@ const styles = StyleSheet.create({
   },
   eventSelector: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: theme.space.xsmall,
   },
   miniEventButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  pageNavigation: {
+    gap: theme.space.xsmall,
+    paddingRight: theme.space.medium,
+  },
+  pageButton: {
+    minWidth: 86,
+    paddingHorizontal: 12,
+  },
+  pageView: {
+    backgroundColor: theme.color.background,
+    flex: 1,
+  },
+  pageHost: {
+    flex: 1,
+  },
+  hiddenPage: {
+    display: "none",
+  },
+  pageContent: {
+    padding: theme.space.medium,
+    paddingBottom: theme.space.xlarge,
+  },
+  pageTitle: {
+    color: theme.color.text,
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  pageDescription: {
+    color: theme.color.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: theme.space.large,
+    marginTop: theme.space.xsmall,
   },
   mapContainer: {
     flex: 1,
@@ -584,6 +741,27 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     width: 180,
     zIndex: 10,
+  },
+  mapLegend: {
+    backgroundColor: "rgba(8, 16, 24, 0.88)",
+    borderColor: theme.color.border,
+    borderRadius: theme.radius.small,
+    borderWidth: 1,
+    padding: theme.space.small,
+    position: "absolute",
+    right: theme.space.small,
+    top: 60,
+  },
+  mapLegendTitle: {
+    color: theme.color.text,
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: theme.space.xsmall,
+  },
+  mapLegendText: {
+    color: theme.color.text,
+    fontSize: 10,
+    lineHeight: 15,
   },
   floatingHeader: {
     marginBottom: theme.space.xsmall,
@@ -649,24 +827,6 @@ const styles = StyleSheet.create({
   locationButton: {
     paddingHorizontal: 10,
   },
-  horizonView: {
-    flex: 1,
-    backgroundColor: theme.color.background,
-  },
-  horizonContainer: {
-    paddingHorizontal: theme.space.medium,
-    paddingVertical: theme.space.medium,
-  },
-  horizonHeader: {
-    marginBottom: theme.space.large,
-    gap: theme.space.small,
-  },
-  horizonTitle: {
-    color: theme.color.text,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: theme.space.small,
-  },
   simulatorSection: {
     marginBottom: theme.space.large,
   },
@@ -683,8 +843,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.medium,
     borderWidth: 1,
     marginBottom: theme.space.medium,
-    overflow: "hidden",
-    height: 320,
+    padding: theme.space.medium,
   },
   metricsGrid: {
     flexDirection: "row",
@@ -717,19 +876,11 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.small,
     marginTop: theme.space.medium,
   },
-  contactsDescription: {
-    color: theme.color.muted,
-    fontSize: 13,
-    marginBottom: theme.space.medium,
-  },
   contactsSection: {
     marginBottom: theme.space.large,
     borderTopColor: theme.color.border,
     borderTopWidth: 1,
     paddingTop: theme.space.medium,
-  },
-  tabsSection: {
-    marginBottom: theme.space.large,
   },
   sourceList: {
     alignItems: "flex-start",
@@ -756,16 +907,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: theme.space.medium,
   },
+  shareUrl: {
+    color: theme.color.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: theme.space.medium,
+  },
   qrCode: {
     borderRadius: theme.radius.small,
     height: 100,
     width: 100,
   },
-  panelBottom: {
-    height: theme.space.xlarge,
-  },
   
   // Reused components
+  metrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.space.small,
+    marginBottom: theme.space.medium,
+  },
   metric: {
     backgroundColor: theme.color.surfaceRaised,
     borderRadius: theme.radius.small,

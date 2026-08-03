@@ -11,9 +11,15 @@ const jsonResponse = (value: unknown): Response =>
 
 describe("Open-Meteo adapters", () => {
   it("builds an elevation and horizon profile", async () => {
-    const fetchFunction = vi.fn<FetchFunction>(async () =>
-      jsonResponse({ elevation: [100, ...Array<number>(91).fill(120)] }),
-    );
+    let requestIndex = 0;
+    const fetchFunction = vi.fn<FetchFunction>(async (input) => {
+      const coordinateCount =
+        new URL(String(input)).searchParams.get("latitude")?.split(",").length ?? 0;
+      const elevation = Array<number>(coordinateCount).fill(120);
+      if (requestIndex === 0) elevation[0] = 100;
+      requestIndex += 1;
+      return jsonResponse({ elevation });
+    });
     const result = await fetchElevationProfile(
       { latitude: 41.8, longitude: -3.2 },
       280,
@@ -27,12 +33,18 @@ describe("Open-Meteo adapters", () => {
     }
     expect(result.value.observerElevationMeters).toBe(100);
     expect(result.value.horizon.samples).toHaveLength(7);
-    expect(result.value.skyline.samples).toHaveLength(13);
+    expect(result.value.skyline.samples).toHaveLength(25);
+    expect(result.value.skyline.fieldOfViewDegrees).toBe(180);
+    expect(fetchFunction).toHaveBeenCalledTimes(2);
     expect(String(fetchFunction.mock.calls[0]?.[0])).toContain("latitude=");
     const requestUrl = new URL(String(fetchFunction.mock.calls[0]?.[0]));
-    expect(requestUrl.searchParams.get("latitude")?.split(",")).toHaveLength(92);
-    expect(requestUrl.searchParams.get("longitude")?.split(",")).toHaveLength(92);
+    expect(requestUrl.searchParams.get("latitude")?.split(",")).toHaveLength(100);
+    expect(requestUrl.searchParams.get("longitude")?.split(",")).toHaveLength(100);
+    const secondRequestUrl = new URL(String(fetchFunction.mock.calls[1]?.[0]));
+    expect(secondRequestUrl.searchParams.get("latitude")?.split(",")).toHaveLength(76);
+    expect(secondRequestUrl.searchParams.get("longitude")?.split(",")).toHaveLength(76);
     expect(fetchFunction.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(fetchFunction.mock.calls[1]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("returns a not-yet-available cloud state outside forecast range", async () => {

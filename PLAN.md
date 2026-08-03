@@ -68,16 +68,20 @@ Event-specific values live in data files. UI and calculation code must not conta
 
 ## MVP screens
 
-The MVP is one scrollable mobile-first workspace with five sections:
+The mobile-first SPA keeps event and location state shared while displaying one
+navigable page at a time:
 
-1. **Find a location** — event picker, rough search point, OSM map, candidate
-   search and ranked candidate selection.
-2. **Eclipse** — contacts, duration, obscuration, centre-line distance.
-3. **Observer sky** — elevation, animated terrain horizon, Sun/Moon path, cloud.
-4. **Audio timeline** — countdown state, add/remove/edit markers, test/arm controls.
-5. **Sources and sharing** — provenance links, canonical URL, QR.
+1. **Map** — event picker, rough search point, OSM map, candidate search and
+   ranked candidate markers.
+2. **Horizon** — elevation and animated terrain horizon with the Sun/Moon path.
+3. **Contact times** — eclipse summary, C1/C2/maximum/C3/C4, and the editable
+   audio timeline.
+4. **Weather** — cloud forecast or an explicit unavailable/error state.
+5. **Sources** — provenance and comparison links.
+6. **QR** — canonical URL, QR image, and copy control.
 
-Desktop layout may place map and analysis side by side. Phone layout remains a single readable column.
+Navigation remains visible on phone and desktop layouts. Pages do not duplicate
+or reset the selected event, location, analysis, audio markers, or share state.
 
 ## Domain contracts
 
@@ -90,7 +94,10 @@ Each event definition contains:
 - search start time;
 - NASA path-table and Besselian-element source URLs;
 - regional map centre and bounds;
-- centre-line polyline derived from the NASA path table.
+- complete northern limit, southern limit, centre line, two-minute UTC samples,
+  and 100% totality polygon derived from the NASA path table;
+- precomputed partial-obscuration and hourly maximum-time contours derived with
+  Astronomy Engine on a 2.5° grid.
 
 ### Location analysis
 
@@ -119,7 +126,14 @@ The horizon feature is explanatory, not a verdict.
   the highest terrain angle for each sampled direction.
 - Render an observer-facing sky view with the terrain silhouette, true Sun and
   Moon positions, and their path between C1 and C4.
-- Provide play/pause, time scrubbing, contact jumps, and playback speed controls.
+- Label the Sun path, Moon path, terrain skyline, astronomical horizon, and
+  altitude guides without relying on colour alone.
+- Sample terrain through 180°, show N/E/S/W bearings, and default the visible
+  field of view to 75°.
+- Allow a 30°–180° field of view using the visible slider, mouse wheel over the
+  chart, or keyboard controls.
+- Keep play/pause, time scrubbing, contact jumps, and playback speed controls
+  visibly below the chart on phone and desktop layouts.
 - Update UTC, obscuration, azimuth, altitude, and terrain clearance as simulated
   time changes.
 - Show observer elevation, sampling source, and limitations.
@@ -222,7 +236,8 @@ Implementation rules:
 | Need | MVP source |
 | --- | --- |
 | Eclipse calculation | Astronomy Engine, checked against NASA GSFC event data |
-| Centre line | NASA GSFC eclipse path tables |
+| Totality limits, area, centre line, and two-minute UTC samples | NASA GSFC eclipse path tables |
+| Partial-obscuration and hourly UTC maximum-time contours | Astronomy Engine, precomputed on a 2.5° grid |
 | Terrain horizon | Open-Meteo elevation API |
 | Cloud forecast | Open-Meteo forecast API |
 | Map | OpenStreetMap-compatible tiles with visible attribution |

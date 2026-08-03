@@ -10,15 +10,15 @@ import {
 const centralLocations = [
   {
     eventId: "spain-2026" as const,
-    location: { latitude: 41.8167, longitude: -3.185 },
+    location: { latitude: 41.81667, longitude: -3.185 },
   },
   {
     eventId: "middle-east-2027" as const,
-    location: { latitude: 26.0617, longitude: 32.3333 },
+    location: { latitude: 26.06167, longitude: 32.33333 },
   },
   {
     eventId: "australia-2028" as const,
-    location: { latitude: -34.165, longitude: 151.5683 },
+    location: { latitude: -34.165, longitude: 151.56833 },
   },
 ];
 

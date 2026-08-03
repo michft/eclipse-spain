@@ -4,6 +4,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
+    "generate:map-overlays": "node scripts/generateEclipseContours.mjs",
     "start": "expo start",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
