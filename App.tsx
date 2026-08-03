@@ -1,13 +1,9 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
-  Dimensions,
   Image,
   Linking,
-  PanResponder,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -160,25 +156,6 @@ export default function App() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
   const [panelOpen, setPanelOpen] = useState(false);
-  const panelYOffset = useRef(new Animated.Value(0)).current;
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, { dy }) => Math.abs(dy) > 10,
-      onPanResponderMove: Animated.event([null, { dy: panelYOffset }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (_, { dy, vy }) => {
-        const shouldClose = dy > 50 || vy > 0.5;
-        Animated.spring(panelYOffset, {
-          toValue: shouldClose ? 0 : -300,
-          useNativeDriver: false,
-          tension: 40,
-          friction: 7,
-        }).start(() => setPanelOpen(!shouldClose));
-      },
-    }),
-  ).current;
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
@@ -277,18 +254,17 @@ export default function App() {
       ? analysis.cloud.result.value
       : null;
 
-  const screenHeight = Dimensions.get("window").height;
-  const panelHeight = screenHeight * 0.6;
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
-      
-      {/* Header Bar */}
+
+      {/* Header Bar - Always Visible */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Eclipse Observer</Text>
-          <Text style={styles.headerSubtitle}>{selectedEvent.region} · {selectedEvent.eventDateUtc.slice(0, 4)}</Text>
+          <Text style={styles.headerSubtitle}>
+            {selectedEvent.region} · {selectedEvent.eventDateUtc.slice(0, 4)}
+          </Text>
         </View>
         <View style={styles.headerControls}>
           <View style={styles.eventSelector}>
@@ -306,215 +282,216 @@ export default function App() {
         </View>
       </View>
 
-      {/* Main Canvas: Map */}
-      <View style={styles.mapContainer}>
-        <MapPanel
-          bounds={selectedEvent.mapBounds}
-          candidates={
-            finder.state === "result" && finder.result.status === "success"
-              ? finder.result.value.candidates.map(
-                  (candidate) => candidate.location,
-                )
-              : []
-          }
-          centerLine={selectedEvent.centerLine}
-          location={location}
-          onLocationChange={(nextLocation) => selectLocation(nextLocation)}
-        />
+      {/* Conditional View: Map or Horizon Panel */}
+      <View style={styles.contentArea}>
+        {panelOpen ? null : (
+          <View key="map-view" style={styles.contentWrapper}>
+            {/* Map View */}
+            <View style={styles.mapContainer}>
+              <MapPanel
+                bounds={selectedEvent.mapBounds}
+                candidates={
+                  finder.state === "result" && finder.result.status === "success"
+                    ? finder.result.value.candidates.map(
+                        (candidate) => candidate.location,
+                      )
+                    : []
+                }
+                centerLine={selectedEvent.centerLine}
+                location={location}
+                onLocationChange={(nextLocation) => selectLocation(nextLocation)}
+              />
 
-        {/* Floating Info Card (Bottom-Left on Web, Overlaid on Mobile) */}
-        <View style={styles.floatingCard}>
-          <View style={styles.floatingHeader}>
-            <Text style={styles.floatingTitle}>Current Point</Text>
-            <Text style={styles.floatingLocation}>
-              {location.latitude.toFixed(3)}°N, {Math.abs(location.longitude).toFixed(3)}°E
-            </Text>
-          </View>
-          
-          {eclipse ? (
-            <View style={styles.floatingMetrics}>
-              <View style={styles.floatingMetric}>
-                <Text style={styles.floatingMetricValue}>
-                  {(eclipse.obscuration * 100).toFixed(0)}%
-                </Text>
-                <Text style={styles.floatingMetricLabel}>Obscured</Text>
-              </View>
-              <View style={styles.floatingMetric}>
-                <Text style={styles.floatingMetricValue}>
-                  {eclipse.centerLineDistanceKm === null
-                    ? "—"
-                    : `${eclipse.centerLineDistanceKm.toFixed(0)} km`}
-                </Text>
-                <Text style={styles.floatingMetricLabel}>to Path</Text>
+              {/* Floating Info Card */}
+              <View style={styles.floatingCard}>
+                <View style={styles.floatingHeader}>
+                  <Text style={styles.floatingTitle}>Current Point</Text>
+                  <Text style={styles.floatingLocation}>
+                    {location.latitude.toFixed(3)}°N,{" "}
+                    {Math.abs(location.longitude).toFixed(3)}°E
+                  </Text>
+                </View>
+
+                {eclipse ? (
+                  <View style={styles.floatingMetrics}>
+                    <View style={styles.floatingMetric}>
+                      <Text style={styles.floatingMetricValue}>
+                        {(eclipse.obscuration * 100).toFixed(0)}%
+                      </Text>
+                      <Text style={styles.floatingMetricLabel}>Obscured</Text>
+                    </View>
+                    <View style={styles.floatingMetric}>
+                      <Text style={styles.floatingMetricValue}>
+                        {eclipse.centerLineDistanceKm === null
+                          ? "—"
+                          : `${eclipse.centerLineDistanceKm.toFixed(0)} km`}
+                      </Text>
+                      <Text style={styles.floatingMetricLabel}>to Path</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.floatingActions}>
+                  <ActionButton onPress={() => setPanelOpen(true)} secondary>
+                    Horizon
+                  </ActionButton>
+                  <ActionButton
+                    onPress={() => void findLocations(selectedEvent, location)}
+                    secondary
+                  >
+                    Find
+                  </ActionButton>
+                </View>
               </View>
             </View>
-          ) : null}
 
-          <View style={styles.floatingActions}>
-            <ActionButton onPress={() => setPanelOpen(!panelOpen)} secondary>
-              {panelOpen ? "Hide" : "Horizon"}
-            </ActionButton>
-            <ActionButton onPress={() => void findLocations(selectedEvent, location)} secondary>
-              Find
-            </ActionButton>
-          </View>
-        </View>
-      </View>
-
-      {/* Coordinate Input Bar (Always Accessible) */}
-      <View style={styles.inputBar}>
-        <TextInput
-          accessibilityLabel="Latitude"
-          keyboardType="numbers-and-punctuation"
-          onChangeText={setLatitudeInput}
-          placeholder="Lat"
-          placeholderTextColor={theme.color.muted}
-          style={styles.miniInput}
-          value={latitudeInput}
-        />
-        <TextInput
-          accessibilityLabel="Longitude"
-          keyboardType="numbers-and-punctuation"
-          onChangeText={setLongitudeInput}
-          placeholder="Lon"
-          placeholderTextColor={theme.color.muted}
-          style={styles.miniInput}
-          value={longitudeInput}
-        />
-        <ActionButton onPress={useCoordinates} style={styles.goButton}>Go</ActionButton>
-        <ActionButton
-          disabled={gettingLocation}
-          onPress={() => void useDeviceLocation()}
-          secondary
-          style={styles.locationButton}
-        >
-          📍
-        </ActionButton>
-      </View>
-
-      {/* Swipeable Horizon Panel */}
-      <Animated.View
-        style={[
-          styles.horizonPanel,
-          {
-            transform: [
-              {
-                translateY: panelYOffset.interpolate({
-                  inputRange: [-panelHeight, 0],
-                  outputRange: [0, panelHeight],
-                  extrapolate: "clamp",
-                }),
-              },
-            ],
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <View style={styles.panelHandle} />
-        <ScrollView style={styles.panelContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.panelTitle}>Sky at Maximum Eclipse</Text>
-
-          {/* Horizon Simulator */}
-          {elevation && eclipse ? (
-            <>
-              <View style={styles.horizonFrame}>
-                <HorizonSimulator
-                  contacts={eclipse.contacts}
-                  elevation={elevation}
-                  location={location}
-                />
-              </View>
-
-              <View style={styles.panelMetrics}>
-                <Metric
-                  label="Observer elevation"
-                  value={`${Math.round(elevation.observerElevationMeters)} m`}
-                />
-                <Metric
-                  label="Terrain FOV"
-                  value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
-                />
-              </View>
-
-              {/* Contact Times */}
-              <View style={styles.contactsSection}>
-                <Text style={styles.sectionTitle}>Contact Times</Text>
-                {CONTACT_IDS.map((contactId) => (
-                  <ContactRow
-                    contact={eclipse.contacts[contactId]}
-                    key={contactId}
-                  />
-                ))}
-              </View>
-            </>
-          ) : (
-            <Text style={styles.muted}>Select a location to load elevation data.</Text>
-          )}
-
-          {/* Additional Info Tabs */}
-          <View style={styles.tabsSection}>
-            {cloud ? (
-              <>
-                <Text style={styles.sectionTitle}>Weather</Text>
-                <CloudDetails cloud={cloud} />
-              </>
-            ) : null}
-          </View>
-
-          <View style={styles.sourceList}>
-            <Text style={styles.sectionTitle}>Sources</Text>
-            {selectedEvent.sources.map((source) => (
-              <Text
-                accessibilityRole="link"
-                key={source.url}
-                onPress={() => void Linking.openURL(source.url)}
-                style={styles.link}
-              >
-                {source.label} ↗
-              </Text>
-            ))}
-            <Text
-              accessibilityRole="link"
-              onPress={() =>
-                void Linking.openURL(OPEN_METEO_ELEVATION_SOURCE_URL)
-              }
-              style={styles.link}
-            >
-              Open-Meteo ↗
-            </Text>
-          </View>
-
-          {/* Share Section */}
-          <View style={styles.shareSection}>
-            <Text style={styles.sectionTitle}>Share</Text>
-            <View style={styles.shareBlock}>
-              {qrCode ? (
-                <Image
-                  accessibilityLabel="QR code"
-                  source={{ uri: qrCode }}
-                  style={styles.qrCode}
-                />
-              ) : qrError ? (
-                <Text style={styles.warning}>{qrError}</Text>
-              ) : (
-                <ActivityIndicator color={theme.color.accent} />
-              )}
+            {/* Coordinate Input Bar */}
+            <View style={styles.inputBar}>
+              <TextInput
+                accessibilityLabel="Latitude"
+                keyboardType="numbers-and-punctuation"
+                onChangeText={setLatitudeInput}
+                placeholder="Lat"
+                placeholderTextColor={theme.color.muted}
+                style={styles.miniInput}
+                value={latitudeInput}
+              />
+              <TextInput
+                accessibilityLabel="Longitude"
+                keyboardType="numbers-and-punctuation"
+                onChangeText={setLongitudeInput}
+                placeholder="Lon"
+                placeholderTextColor={theme.color.muted}
+                style={styles.miniInput}
+                value={longitudeInput}
+              />
+              <ActionButton onPress={useCoordinates} style={styles.goButton}>
+                Go
+              </ActionButton>
               <ActionButton
-                onPress={() => {
-                  void copyText(shareUrl).then((copied) => {
-                    setCopyState(copied ? "Copied" : "Copy unavailable");
-                  });
-                }}
+                disabled={gettingLocation}
+                onPress={() => void useDeviceLocation()}
                 secondary
+                style={styles.locationButton}
               >
-                {copyState}
+                📍
               </ActionButton>
             </View>
           </View>
+        )}
+        {!panelOpen ? null : (
+          /* Horizon View */
+          <ScrollView key="horizon-view" style={styles.horizonView} showsVerticalScrollIndicator={false}>
+            <View style={styles.horizonContainer}>
+              <View style={styles.horizonHeader}>
+                <Text style={styles.horizonTitle}>Sky at Maximum Eclipse</Text>
+                <ActionButton onPress={() => setPanelOpen(false)} secondary>
+                  ← Back to Map
+                </ActionButton>
+              </View>
 
-          <View style={styles.panelBottom} />
-        </ScrollView>
-      </Animated.View>
+            {/* Horizon Simulator */}
+            {elevation && eclipse ? (
+              <>
+                <View style={styles.horizonFrame}>
+                  <HorizonSimulator
+                    contacts={eclipse.contacts}
+                    elevation={elevation}
+                    location={location}
+                  />
+                </View>
+
+                <View style={styles.panelMetrics}>
+                  <Metric
+                    label="Observer elevation"
+                    value={`${Math.round(elevation.observerElevationMeters)} m`}
+                  />
+                  <Metric
+                    label="Terrain FOV"
+                    value={`${elevation.skyline.fieldOfViewDegrees.toFixed(0)}°`}
+                  />
+                </View>
+
+                {/* Contact Times */}
+                <View style={styles.contactsSection}>
+                  <Text style={styles.sectionTitle}>Contact Times</Text>
+                  {CONTACT_IDS.map((contactId) => (
+                    <ContactRow
+                      contact={eclipse.contacts[contactId]}
+                      key={contactId}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.muted}>Select a location to load elevation data.</Text>
+            )}
+
+            {/* Weather Section */}
+            {cloud ? (
+              <View style={styles.tabsSection}>
+                <Text style={styles.sectionTitle}>Weather</Text>
+                <CloudDetails cloud={cloud} />
+              </View>
+            ) : null}
+
+            {/* Sources */}
+            <View style={styles.sourceList}>
+              <Text style={styles.sectionTitle}>Sources</Text>
+              {selectedEvent.sources.map((source) => (
+                <Text
+                  accessibilityRole="link"
+                  key={source.url}
+                  onPress={() => void Linking.openURL(source.url)}
+                  style={styles.link}
+                >
+                  {source.label} ↗
+                </Text>
+              ))}
+              <Text
+                accessibilityRole="link"
+                onPress={() =>
+                  void Linking.openURL(OPEN_METEO_ELEVATION_SOURCE_URL)
+                }
+                style={styles.link}
+              >
+                Open-Meteo ↗
+              </Text>
+            </View>
+
+            {/* Share Section */}
+            <View style={styles.shareSection}>
+              <Text style={styles.sectionTitle}>Share</Text>
+              <View style={styles.shareBlock}>
+                {qrCode ? (
+                  <Image
+                    accessibilityLabel="QR code"
+                    source={{ uri: qrCode }}
+                    style={styles.qrCode}
+                  />
+                ) : qrError ? (
+                  <Text style={styles.warning}>{qrError}</Text>
+                ) : (
+                  <ActivityIndicator color={theme.color.accent} />
+                )}
+                <ActionButton
+                  onPress={() => {
+                    void copyText(shareUrl).then((copied) => {
+                      setCopyState(copied ? "Copied" : "Copy unavailable");
+                    });
+                  }}
+                  secondary
+                >
+                  {copyState}
+                </ActionButton>
+              </View>
+            </View>
+
+            <View style={styles.panelBottom} />
+          </View>
+          </ScrollView>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -538,6 +515,12 @@ const CloudDetails = ({ cloud }: { cloud: CloudForecast }) => (
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: theme.color.background,
+    flex: 1,
+  },
+  contentArea: {
+    flex: 1,
+  },
+  contentWrapper: {
     flex: 1,
   },
   header: {
@@ -653,36 +636,23 @@ const styles = StyleSheet.create({
   locationButton: {
     paddingHorizontal: 10,
   },
-  horizonPanel: {
-    backgroundColor: theme.color.surface,
-    borderTopColor: theme.color.border,
-    borderTopLeftRadius: theme.radius.large,
-    borderTopRightRadius: theme.radius.large,
-    borderTopWidth: 1,
-    height: "60%",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  panelHandle: {
-    alignSelf: "center",
-    backgroundColor: theme.color.border,
-    borderRadius: 2,
-    height: 4,
-    marginTop: theme.space.small,
-    marginBottom: theme.space.small,
-    width: 40,
-  },
-  panelContent: {
+  horizonView: {
     flex: 1,
-    paddingHorizontal: theme.space.medium,
+    backgroundColor: theme.color.background,
   },
-  panelTitle: {
+  horizonContainer: {
+    paddingHorizontal: theme.space.medium,
+    paddingVertical: theme.space.medium,
+  },
+  horizonHeader: {
+    marginBottom: theme.space.large,
+    gap: theme.space.small,
+  },
+  horizonTitle: {
     color: theme.color.text,
     fontSize: 18,
     fontWeight: "800",
-    marginBottom: theme.space.medium,
+    marginBottom: theme.space.small,
   },
   horizonFrame: {
     borderColor: theme.color.border,
