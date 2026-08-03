@@ -1,15 +1,20 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import type { MapBounds } from "../data/eclipseEvents";
+import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
 import { theme } from "../styles/theme";
 
 interface MapPanelProps {
   bounds: MapBounds;
   candidates?: readonly GeoPoint[];
-  centerLine: readonly GeoPoint[];
+  contours: {
+    readonly obscurationContours: readonly unknown[];
+    readonly timeContours: readonly unknown[];
+  };
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
+  path: EclipsePathGeometry;
 }
 
 export const MapPanel = (_props: MapPanelProps) => (

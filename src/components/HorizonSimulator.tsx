@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import Svg, {
   Circle,
   Defs,
+  G,
   LinearGradient,
   Line,
   Polygon,
@@ -22,6 +23,7 @@ import type { GeoPoint } from "../domain/geo";
 import type { ElevationProfileResult } from "../services/openMeteo";
 import { theme } from "../styles/theme";
 import { ActionButton } from "./ActionButton";
+import { HorizonZoomSurface } from "./HorizonZoomSurface";
 import { TimelineSlider } from "./TimelineSlider";
 
 interface HorizonSimulatorProps {
@@ -37,6 +39,17 @@ const PAD_RIGHT = 20;
 const PAD_TOP = 18;
 const PAD_BOTTOM = 34;
 const PATH_SAMPLES = 48;
+const ALTITUDE_GUIDES = [0, 10, 20, 40, 60, 80] as const;
+const DEFAULT_FIELD_OF_VIEW_DEGREES = 75;
+const MINIMUM_FIELD_OF_VIEW_DEGREES = 30;
+const MAXIMUM_FIELD_OF_VIEW_DEGREES = 180;
+const FIELD_OF_VIEW_STEP_DEGREES = 5;
+const CARDINAL_POINTS = [
+  { bearing: 0, label: "N" },
+  { bearing: 90, label: "E" },
+  { bearing: 180, label: "S" },
+  { bearing: 270, label: "W" },
+] as const;
 
 const azimuthOffset = (azimuth: number, center: number): number =>
   ((azimuth - center + 540) % 360) - 180;
@@ -93,11 +106,20 @@ export const HorizonSimulator = ({
   );
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(300);
+  const [fieldOfViewDegrees, setFieldOfViewDegrees] = useState(
+    Math.min(DEFAULT_FIELD_OF_VIEW_DEGREES, elevation.skyline.fieldOfViewDegrees),
+  );
 
   useEffect(() => {
     setPlaying(false);
     setSimulatedMilliseconds(maximumMilliseconds);
   }, [maximumMilliseconds]);
+
+  useEffect(() => {
+    setFieldOfViewDegrees(
+      Math.min(DEFAULT_FIELD_OF_VIEW_DEGREES, elevation.skyline.fieldOfViewDegrees),
+    );
+  }, [elevation.skyline.centerAzimuthDegrees, elevation.skyline.fieldOfViewDegrees]);
 
   useEffect(() => {
     if (!playing || !Number.isFinite(endMilliseconds)) {
@@ -147,7 +169,19 @@ export const HorizonSimulator = ({
   }
 
   const { skyline } = elevation;
-  const halfField = skyline.fieldOfViewDegrees / 2;
+  const maximumFieldOfViewDegrees = Math.min(
+    MAXIMUM_FIELD_OF_VIEW_DEGREES,
+    skyline.fieldOfViewDegrees,
+  );
+  const halfField = fieldOfViewDegrees / 2;
+  const changeFieldOfView = (nextFieldOfViewDegrees: number): void => {
+    setFieldOfViewDegrees(
+      Math.max(
+        MINIMUM_FIELD_OF_VIEW_DEGREES,
+        Math.min(maximumFieldOfViewDegrees, nextFieldOfViewDegrees),
+      ),
+    );
+  };
   const maximumAltitude = Math.min(
     90,
     Math.max(
@@ -162,7 +196,7 @@ export const HorizonSimulator = ({
   const minimumAltitude = -3;
   const x = (offset: number): number =>
     PAD_LEFT +
-    ((offset + halfField) / skyline.fieldOfViewDegrees) *
+    ((offset + halfField) / fieldOfViewDegrees) *
       (WIDTH - PAD_LEFT - PAD_RIGHT);
   const y = (altitude: number): number =>
     PAD_TOP +
@@ -180,9 +214,22 @@ export const HorizonSimulator = ({
       .filter((point) => Math.abs(point.offset) <= halfField)
       .map((point) => `${x(point.offset)},${y(point.altitude)}`)
       .join(" ");
+  const visibleTerrainSamples = [
+    {
+      azimuthOffsetDegrees: -halfField,
+      terrainAngleDegrees: interpolateTerrain(skyline.samples, -halfField),
+    },
+    ...skyline.samples.filter(
+      (sample) => Math.abs(sample.azimuthOffsetDegrees) < halfField,
+    ),
+    {
+      azimuthOffsetDegrees: halfField,
+      terrainAngleDegrees: interpolateTerrain(skyline.samples, halfField),
+    },
+  ];
   const terrainPoints = [
     `${x(-halfField)},${y(minimumAltitude)}`,
-    ...skyline.samples.map(
+    ...visibleTerrainSamples.map(
       (sample) =>
         `${x(sample.azimuthOffsetDegrees)},${y(sample.terrainAngleDegrees)}`,
     ),
@@ -202,6 +249,13 @@ export const HorizonSimulator = ({
   const moonRadius = Math.max(7, current.moon.angularRadiusDegrees * pixelsPerDegree);
   const terrainAtSun = interpolateTerrain(skyline.samples, sunOffset);
   const clearance = current.sun.altitudeDegrees - terrainAtSun;
+  const visibleCardinals = CARDINAL_POINTS.flatMap((cardinal) => {
+    const offset = azimuthOffset(
+      cardinal.bearing,
+      skyline.centerAzimuthDegrees,
+    );
+    return Math.abs(offset) <= halfField ? [{ ...cardinal, offset }] : [];
+  });
 
   return (
     <View style={styles.container}>
@@ -219,13 +273,56 @@ export const HorizonSimulator = ({
           </Text>
         </View>
       </View>
-      <View style={styles.skyFrame}>
-        <Svg
-          accessibilityLabel="Animated observer sky showing Sun and Moon above the sampled terrain horizon"
-          height={HEIGHT}
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          width="100%"
-        >
+      <View accessibilityLabel="Chart line labels" style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.sunPathLine]} />
+          <Text style={styles.legendLabel}>Sun path</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.moonPathLine]} />
+          <Text style={styles.legendLabel}>Moon path</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.terrainLine]} />
+          <Text style={styles.legendLabel}>Terrain skyline</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.horizonLine]} />
+          <Text style={styles.legendLabel}>Astronomical horizon (0° altitude)</Text>
+        </View>
+      </View>
+      <View style={styles.fieldOfViewHeader}>
+        <Text style={styles.controlLabel}>Field of view</Text>
+        <Text style={styles.fieldOfViewValue}>{fieldOfViewDegrees.toFixed(0)}°</Text>
+      </View>
+      <TimelineSlider
+        accessibilityLabel="Horizon field of view"
+        maximum={maximumFieldOfViewDegrees}
+        minimum={MINIMUM_FIELD_OF_VIEW_DEGREES}
+        onChange={changeFieldOfView}
+        step={FIELD_OF_VIEW_STEP_DEGREES}
+        value={fieldOfViewDegrees}
+      />
+      <Text style={styles.helperText}>
+        Drag the control, or scroll over the chart, to zoom from 30° to 180°.
+      </Text>
+      <View accessibilityLabel="Cardinal bearings" style={styles.compassKey}>
+        {CARDINAL_POINTS.map((cardinal) => (
+          <Text key={cardinal.label} style={styles.compassLabel}>
+            {cardinal.label} {cardinal.bearing}°
+          </Text>
+        ))}
+      </View>
+      <HorizonZoomSurface
+        onZoomBy={(degrees) => changeFieldOfView(fieldOfViewDegrees + degrees)}
+      >
+        <View style={styles.skyFrame}>
+          <Svg
+            accessibilityLabel="Animated observer sky showing Sun and Moon above the sampled terrain horizon"
+            height={HEIGHT}
+            viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+            width="100%"
+          >
           <Defs>
             <LinearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
               <Stop offset="0" stopColor="#07152a" />
@@ -234,19 +331,23 @@ export const HorizonSimulator = ({
             </LinearGradient>
           </Defs>
           <Rect fill="url(#sky)" height={HEIGHT} width={WIDTH} />
-          {[0, 10, 20, 40, 60, 80]
+          {ALTITUDE_GUIDES
             .filter((altitude) => altitude <= maximumAltitude)
             .map((altitude) => (
-              <Line
-                key={altitude}
-                opacity={0.3}
-                stroke="#d9ecff"
-                strokeWidth={1}
-                x1={PAD_LEFT}
-                x2={WIDTH - PAD_RIGHT}
-                y1={y(altitude)}
-                y2={y(altitude)}
-              />
+              <G key={altitude}>
+                <Line
+                  opacity={altitude === 0 ? 0.8 : 0.3}
+                  stroke="#d9ecff"
+                  strokeWidth={altitude === 0 ? 2 : 1}
+                  x1={PAD_LEFT}
+                  x2={WIDTH - PAD_RIGHT}
+                  y1={y(altitude)}
+                  y2={y(altitude)}
+                />
+                <SvgText fill="#d9ecff" fontSize={11} textAnchor="end" x={PAD_LEFT - 6} y={y(altitude) + 4}>
+                  {altitude}°
+                </SvgText>
+              </G>
             ))}
           <Polyline
             fill="none"
@@ -292,9 +393,32 @@ export const HorizonSimulator = ({
             />
           ) : null}
           <Polygon fill="#081018" points={terrainPoints} />
+          {visibleCardinals.map((cardinal) => (
+            <G key={cardinal.label}>
+              <Line
+                opacity={0.22}
+                stroke="#f7f2df"
+                strokeWidth={1}
+                x1={x(cardinal.offset)}
+                x2={x(cardinal.offset)}
+                y1={PAD_TOP}
+                y2={HEIGHT - PAD_BOTTOM}
+              />
+              <SvgText
+                fill="#f7f2df"
+                fontSize={13}
+                fontWeight="bold"
+                textAnchor="middle"
+                x={x(cardinal.offset)}
+                y={PAD_TOP + 15}
+              >
+                {cardinal.label} · {cardinal.bearing}°
+              </SvgText>
+            </G>
+          ))}
           <Polyline
             fill="none"
-            points={skyline.samples
+            points={visibleTerrainSamples
               .map(
                 (sample) =>
                   `${x(sample.azimuthOffsetDegrees)},${y(sample.terrainAngleDegrees)}`,
@@ -303,7 +427,6 @@ export const HorizonSimulator = ({
             stroke={theme.color.sky}
             strokeWidth={2}
           />
-          <SvgText fill="#d9ecff" fontSize={11} x={4} y={y(0) + 4}>0°</SvgText>
           <SvgText fill="#d9ecff" fontSize={11} x={PAD_LEFT} y={HEIGHT - 10}>
             {normalizeAzimuth(skyline.centerAzimuthDegrees - halfField).toFixed(0)}° az
           </SvgText>
@@ -316,8 +439,10 @@ export const HorizonSimulator = ({
           >
             {normalizeAzimuth(skyline.centerAzimuthDegrees + halfField).toFixed(0)}° az
           </SvgText>
-        </Svg>
-      </View>
+          </Svg>
+        </View>
+      </HorizonZoomSurface>
+      <Text style={styles.controlLabel}>Simulation time</Text>
       <TimelineSlider
         maximum={endMilliseconds}
         minimum={startMilliseconds}
@@ -327,6 +452,11 @@ export const HorizonSimulator = ({
         }}
         value={simulatedMilliseconds}
       />
+      <View style={styles.timeBounds}>
+        <Text style={styles.timeBound}>{formatUtc(startMilliseconds)} · C1</Text>
+        <Text style={styles.timeBound}>{formatUtc(endMilliseconds)} · C4</Text>
+      </View>
+      <Text style={styles.controlLabel}>Playback controls</Text>
       <View style={styles.controls}>
         <ActionButton onPress={() => setPlaying((currentPlaying) => !currentPlaying)}>
           {playing ? "Pause" : "Play"}
@@ -361,6 +491,7 @@ export const HorizonSimulator = ({
           </ActionButton>
         ))}
       </View>
+      <Text style={styles.controlLabel}>Jump to eclipse contact</Text>
       <View style={styles.controls}>
         {CONTACT_IDS.map((contactId) => {
           const contact = contacts[contactId];
@@ -379,7 +510,7 @@ export const HorizonSimulator = ({
         })}
       </View>
       <Text style={styles.disclaimer}>
-        Terrain uses a 90 m DEM sampled across this 80° view. Sun and Moon positions
+        Terrain uses a 90 m DEM sampled across a 180° view. Sun and Moon positions
         are calculated for the selected UTC. Disc sizes are enlarged for legibility;
         trees, buildings, haze, cloud, and temporary obstructions are not modelled.
       </Text>
@@ -396,6 +527,22 @@ const styles = StyleSheet.create({
   metricText: { color: theme.color.text, fontSize: 13, fontVariant: ["tabular-nums"] },
   blocked: { color: theme.color.warning },
   skyFrame: { borderColor: theme.color.border, borderRadius: theme.radius.medium, borderWidth: 1, overflow: "hidden" },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
+  legendItem: { alignItems: "center", flexDirection: "row", gap: theme.space.small },
+  legendLine: { borderTopWidth: 2, width: 28 },
+  sunPathLine: { borderColor: theme.color.accent, borderStyle: "dashed" },
+  moonPathLine: { borderColor: "#d9e2ea", borderStyle: "dashed" },
+  terrainLine: { borderColor: theme.color.sky },
+  horizonLine: { borderColor: "#d9ecff" },
+  legendLabel: { color: theme.color.text, fontSize: 12 },
+  fieldOfViewHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  fieldOfViewValue: { color: theme.color.accent, fontSize: 18, fontWeight: "900" },
+  helperText: { color: theme.color.muted, fontSize: 11, lineHeight: 16 },
+  compassKey: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
+  compassLabel: { color: theme.color.text, fontSize: 12, fontWeight: "700" },
+  controlLabel: { color: theme.color.text, fontSize: 14, fontWeight: "800" },
+  timeBounds: { flexDirection: "row", justifyContent: "space-between" },
+  timeBound: { color: theme.color.muted, fontSize: 11, fontVariant: ["tabular-nums"] },
   controls: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.small },
   disclaimer: { color: theme.color.muted, fontSize: 11, lineHeight: 16 },
   warning: { color: theme.color.warning, fontSize: 14 },

@@ -20,12 +20,15 @@ export const OPEN_METEO_FORECAST_SOURCE_URL = "https://open-meteo.com/en/docs";
 
 const HORIZON_DISTANCES_KM = [0.25, 0.5, 1, 2, 5, 10, 20] as const;
 const HORIZON_AZIMUTH_OFFSETS_DEGREES = [
-  -40, -33.333, -26.667, -20, -13.333, -6.667, 0, 6.667, 13.333, 20,
-  26.667, 33.333, 40,
+  -90, -82.5, -75, -67.5, -60, -52.5, -45, -37.5, -30, -22.5, -15,
+  -7.5, 0, 7.5, 15, 22.5, 30, 37.5, 45, 52.5, 60, 67.5, 75, 82.5, 90,
 ] as const;
 const FORECAST_RANGE_DAYS = 16;
 const OPEN_METEO_TIMEOUT_MILLISECONDS =
   DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS + 11_000;
+const OPEN_METEO_ELEVATION_TIMEOUT_MILLISECONDS =
+  2 * OPEN_METEO_TIMEOUT_MILLISECONDS;
+const OPEN_METEO_MAXIMUM_COORDINATES = 100;
 
 interface ElevationResponse {
   elevation: number[];
@@ -98,29 +101,38 @@ export const fetchElevationProfile = async (
     location,
     ...skylineRays.flatMap((ray) => ray.locations),
   ];
-  const query = new URLSearchParams({
-    latitude: requestLocations.map((point) => point.latitude.toFixed(6)).join(","),
-    longitude: requestLocations
-      .map((point) => point.longitude.toFixed(6))
-      .join(","),
-  });
-
-  const timeout = createRequestTimeout(OPEN_METEO_TIMEOUT_MILLISECONDS);
+  const timeout = createRequestTimeout(OPEN_METEO_ELEVATION_TIMEOUT_MILLISECONDS);
   try {
-    const response = await fetchWithRateLimitBackoff(
-      fetchFunction,
-      `${OPEN_METEO_ELEVATION_URL}?${query}`,
-      { signal: timeout.signal },
-    );
-    if (!response.ok) {
-      return { status: "error", reason: await responseReason(response) };
-    }
-    const parsed = parseElevationResponse(await response.json());
-    if (!parsed || parsed.elevation.length !== requestLocations.length) {
-      return { status: "error", reason: "Elevation response was incomplete." };
+    const elevations: number[] = [];
+    for (
+      let startIndex = 0;
+      startIndex < requestLocations.length;
+      startIndex += OPEN_METEO_MAXIMUM_COORDINATES
+    ) {
+      const batch = requestLocations.slice(
+        startIndex,
+        startIndex + OPEN_METEO_MAXIMUM_COORDINATES,
+      );
+      const query = new URLSearchParams({
+        latitude: batch.map((point) => point.latitude.toFixed(6)).join(","),
+        longitude: batch.map((point) => point.longitude.toFixed(6)).join(","),
+      });
+      const response = await fetchWithRateLimitBackoff(
+        fetchFunction,
+        `${OPEN_METEO_ELEVATION_URL}?${query}`,
+        { signal: timeout.signal },
+      );
+      if (!response.ok) {
+        return { status: "error", reason: await responseReason(response) };
+      }
+      const parsedBatch = parseElevationResponse(await response.json());
+      if (!parsedBatch || parsedBatch.elevation.length !== batch.length) {
+        return { status: "error", reason: "Elevation response was incomplete." };
+      }
+      elevations.push(...parsedBatch.elevation);
     }
 
-    const observerElevationMeters = parsed.elevation[0];
+    const observerElevationMeters = elevations[0];
     if (observerElevationMeters === undefined) {
       return { status: "error", reason: "Observer elevation was missing." };
     }
@@ -129,7 +141,7 @@ export const fetchElevationProfile = async (
         (profileLocation, distanceIndex) => {
           const responseIndex =
             1 + rayIndex * HORIZON_DISTANCES_KM.length + distanceIndex;
-          const elevationMeters = parsed.elevation[responseIndex];
+          const elevationMeters = elevations[responseIndex];
           const distanceKm = HORIZON_DISTANCES_KM[distanceIndex];
           return elevationMeters === undefined || distanceKm === undefined
             ? []
@@ -159,7 +171,7 @@ export const fetchElevationProfile = async (
         horizon: centerProfile.profile,
         skyline: {
           centerAzimuthDegrees: azimuthDegrees,
-          fieldOfViewDegrees: 80,
+          fieldOfViewDegrees: 180,
           samples: profiles.map(({ offsetDegrees, profile }) => ({
             azimuthDegrees: profile.azimuthDegrees,
             azimuthOffsetDegrees: offsetDegrees,

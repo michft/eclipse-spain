@@ -18,18 +18,28 @@ and library assumptions all affect results.
 Compare the selected point with the NASA event pages and other reputable local
 circumstance calculators before field use.
 
-## Centre-line distance
+## Eclipse path map and centre-line distance
 
-Regional centre-line coordinates are transcribed and simplified from NASA path
-tables:
+Complete northern-limit, southern-limit, and centre-line coordinates are
+transcribed from NASA WGS84 path tables at their published two-minute spacing:
 
 - [12 August 2026 path table](https://eclipse.gsfc.nasa.gov/SEpath/SEpath2001/SE2026Aug12Tpath.html)
 - [2 August 2027 path table](https://eclipse.gsfc.nasa.gov/SEpath/SEpath2001/SE2027Aug02Tpath.html)
 - [22 July 2028 path table](https://eclipse.gsfc.nasa.gov/SEpath/SEpath2001/SE2028Jul22Tpath.html)
 
-The app measures the shortest spherical cross-track distance to the simplified
-regional polyline. It is not a fresh Besselian centre-line solution and becomes
-less precise between widely spaced path-table points or outside the stored region.
+Each event's Sources page also links the original NASA orthographic visibility
+map for direct comparison with the app's flat OpenStreetMap overlays.
+
+The filled 100% totality corridor joins the published northern and southern
+limits. Whole-hour centre-line samples use the table's UTC values. The app
+measures the shortest spherical distance to this complete stored centre line.
+
+Partial-obscuration bands and hourly UTC curves of local maximum are derived
+offline with Astronomy Engine on a 2.5° global latitude/longitude grid by
+`scripts/generateEclipseContours.mjs`. They are explanatory contours, not survey
+boundaries. The 0.1% contour supplies the lightly filled partial-observable area;
+20%, 40%, 60%, and 80% lines show maximum obscured Sun area. Only real calculated
+hour curves are shown—for example 2026 contains 17:00Z, 18:00Z, and 19:00Z.
 
 ## Elevation and terrain horizon
 
@@ -38,16 +48,17 @@ less precise between widely spaced path-table points or outside the stored regio
   on the Open-Meteo page.
 
 For a selected location, the app requests observer elevation plus seven outward
-distance samples for each of 13 azimuths across an 80° view centred on the Sun at
-maximum. It converts terrain height relative to the observer into apparent angle,
+distance samples for each of 25 azimuths across a 180° view centred on the Sun at
+maximum. The 176 coordinates use two requests within Open-Meteo's 100-coordinate
+batch limit. It converts terrain height relative to the observer into apparent angle,
 includes geometric Earth-curvature drop, and uses the highest angle on each ray
-as the terrain silhouette. The request stays within Open-Meteo's published
-100-coordinate batch limit.
+as the terrain silhouette.
 
 Astronomy Engine calculates topocentric Sun and Moon azimuth/altitude throughout
-C1–C4. The observer-sky display provides time scrubbing, contact jumps, and
-accelerated playback. Body discs are enlarged for legibility; their displayed
-size is not an angular scale reference.
+C1–C4. The observer-sky display starts at 75°, adjusts from 30° to 180°, labels
+cardinal bearings, and provides time scrubbing, contact jumps, and accelerated
+playback. Body discs are enlarged for legibility; their displayed size is not an
+angular scale reference.
 
 The skyline does not model atmospheric refraction, local survey detail, trees,
 buildings, temporary structures, or haze. It intentionally has no fixed 2°

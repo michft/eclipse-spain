@@ -1,25 +1,68 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import L from "leaflet";
 import {
   CircleMarker,
   MapContainer,
+  Polygon,
   Polyline,
   TileLayer,
+  Tooltip,
   useMap,
   useMapEvents,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 import type { MapBounds } from "../data/eclipseEvents";
+import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
+import { theme } from "../styles/theme";
+
+type ContourPath = readonly (readonly [number, number])[];
+
+interface MapContours {
+  readonly obscurationContours: readonly {
+    readonly paths: readonly ContourPath[];
+    readonly percent: number;
+  }[];
+  readonly timeContours: readonly {
+    readonly label: string;
+    readonly paths: readonly ContourPath[];
+  }[];
+}
 
 interface MapPanelProps {
   bounds: MapBounds;
   candidates?: readonly GeoPoint[];
-  centerLine: readonly GeoPoint[];
+  contours: MapContours;
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
+  path: EclipsePathGeometry;
 }
+
+const unwrapLongitudes = (
+  points: readonly GeoPoint[],
+): [number, number][] => {
+  let previousLongitude: number | null = null;
+  return points.map((point) => {
+    let longitude = point.longitude;
+    if (previousLongitude !== null) {
+      while (longitude - previousLongitude > 180) longitude -= 360;
+      while (longitude - previousLongitude < -180) longitude += 360;
+    }
+    previousLongitude = longitude;
+    return [point.latitude, longitude];
+  });
+};
+
+const fullPathBounds = (path: EclipsePathGeometry): MapBounds => {
+  const positions = unwrapLongitudes(path.totalityArea);
+  return {
+    north: Math.max(...positions.map(([latitude]) => latitude)),
+    east: Math.max(...positions.map(([, longitude]) => longitude)),
+    south: Math.min(...positions.map(([latitude]) => latitude)),
+    west: Math.min(...positions.map(([, longitude]) => longitude)),
+  };
+};
 
 const FitEventBounds = ({ bounds }: { bounds: MapBounds }) => {
   const map = useMap();
@@ -60,26 +103,109 @@ const MapClick = ({
 export const MapPanel = ({
   bounds,
   candidates = [],
-  centerLine,
+  contours,
   location,
   onLocationChange,
-}: MapPanelProps) => (
-  <MapContainer
-    center={[location.latitude, location.longitude]}
-    scrollWheelZoom
-    style={{ height: 390, width: "100%" }}
-    zoom={6}
-  >
+  path,
+}: MapPanelProps) => {
+  const [showFullPath, setShowFullPath] = useState(true);
+  return (
+    <div style={{ height: 390, position: "relative", width: "100%" }}>
+      <MapContainer
+        center={[location.latitude, location.longitude]}
+        scrollWheelZoom
+        style={{ height: 390, width: "100%" }}
+        zoom={6}
+      >
     <TileLayer
       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
-    <FitEventBounds bounds={bounds} />
+    <FitEventBounds bounds={showFullPath ? fullPathBounds(path) : bounds} />
     <KeepLocationVisible location={location} />
+    {contours.obscurationContours.map((contour, contourIndex) =>
+      contour.paths.map((contourPath, pathIndex) =>
+        contourIndex === 0 ? (
+          <Polygon
+            key={`partial-area:${pathIndex}`}
+            pathOptions={{
+              color: "#55baf4",
+              fillColor: "#55baf4",
+              fillOpacity: 0.07,
+              opacity: 0.65,
+              weight: 1,
+            }}
+            positions={contourPath.map(([latitude, longitude]) => [latitude, longitude])}
+          >
+            {pathIndex === 0 ? <Tooltip sticky>Partial eclipse observable</Tooltip> : null}
+          </Polygon>
+        ) : (
+          <Polyline
+            key={`obscuration:${contour.percent}:${pathIndex}`}
+            pathOptions={{ color: "#55baf4", opacity: 0.72, weight: 1.5 }}
+            positions={contourPath.map(([latitude, longitude]) => [latitude, longitude])}
+          >
+            {pathIndex === 0 ? (
+              <Tooltip sticky>{contour.percent.toFixed(0)}% maximum obscuration</Tooltip>
+            ) : null}
+          </Polyline>
+        ),
+      ),
+    )}
+    {contours.timeContours.flatMap((contour) =>
+      contour.paths.map((contourPath, pathIndex) => (
+        <Polyline
+          key={`time:${contour.label}:${pathIndex}`}
+          pathOptions={{ color: "#65d6a6", opacity: 0.8, weight: 1.5 }}
+          positions={contourPath.map(([latitude, longitude]) => [latitude, longitude])}
+        >
+          {pathIndex === 0 ? (
+            <Tooltip direction="center" permanent>
+              {contour.label}
+            </Tooltip>
+          ) : null}
+        </Polyline>
+      )),
+    )}
+    <Polygon
+      pathOptions={{
+        color: "#ffe69a",
+        fillColor: "#ffc94d",
+        fillOpacity: 0.24,
+        opacity: 0.75,
+        weight: 1,
+      }}
+      positions={unwrapLongitudes(path.totalityArea)}
+    >
+      <Tooltip sticky>100% totality area</Tooltip>
+    </Polygon>
+    <Polyline
+      pathOptions={{ color: "#f7f2df", dashArray: "5 6", opacity: 0.9, weight: 2 }}
+      positions={unwrapLongitudes(path.northernLimit)}
+    />
+    <Polyline
+      pathOptions={{ color: "#f7f2df", dashArray: "5 6", opacity: 0.9, weight: 2 }}
+      positions={unwrapLongitudes(path.southernLimit)}
+    />
     <Polyline
       pathOptions={{ color: "#ffc94d", opacity: 0.9, weight: 3 }}
-      positions={centerLine.map((point) => [point.latitude, point.longitude])}
+      positions={unwrapLongitudes(path.centerLine)}
     />
+    {path.centerLine
+      .filter((point) => point.timeUtc?.endsWith(":00Z"))
+      .map((point) => (
+        <CircleMarker
+          center={[point.latitude, point.longitude]}
+          key={`path-time:${point.timeUtc}`}
+          pathOptions={{ color: "#081018", fillColor: "#ffc94d", fillOpacity: 1 }}
+          radius={4}
+          weight={1}
+        >
+          <Tooltip direction="top" permanent>
+            {point.timeUtc}
+          </Tooltip>
+        </CircleMarker>
+      ))}
     <CircleMarker
       center={[location.latitude, location.longitude]}
       pathOptions={{ color: "#081018", fillColor: "#7cc7ff", fillOpacity: 1 }}
@@ -99,6 +225,46 @@ export const MapPanel = ({
         weight={2}
       />
     ))}
-    <MapClick onLocationChange={onLocationChange} />
-  </MapContainer>
-);
+        <MapClick onLocationChange={onLocationChange} />
+      </MapContainer>
+      <div
+        aria-label="Map extent controls"
+        style={{ display: "flex", gap: 4, left: 52, position: "absolute", top: 12, zIndex: 1000 }}
+      >
+        <button
+          aria-pressed={showFullPath}
+          onClick={() => setShowFullPath(true)}
+          style={showFullPath ? { ...mapControlStyle, ...mapControlActiveStyle } : mapControlStyle}
+          type="button"
+        >
+          Full eclipse path
+        </button>
+        <button
+          aria-pressed={!showFullPath}
+          onClick={() => setShowFullPath(false)}
+          style={!showFullPath ? { ...mapControlStyle, ...mapControlActiveStyle } : mapControlStyle}
+          type="button"
+        >
+          Selected region
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const mapControlStyle = {
+  background: theme.color.surfaceRaised,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 6,
+  color: theme.color.text,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+  minHeight: 34,
+  padding: "6px 9px",
+} as const;
+
+const mapControlActiveStyle = {
+  background: theme.color.accent,
+  color: theme.color.background,
+} as const;

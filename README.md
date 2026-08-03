@@ -16,13 +16,19 @@ intentionally has no public product version yet.
 - 2 August 2027 — North Africa and the Middle East.
 - 22 July 2028 — Sydney and Australia.
 
-All three use one calculation and UI pipeline. Event dates, regional map bounds,
-NASA sources, and centre-line points live in `src/data/eclipseEvents.ts`.
+All three use one calculation and UI pipeline. Event configuration lives in
+`src/data/eclipseEvents.ts`; complete NASA path rows live in
+`src/data/eclipsePaths.ts`; derived partial/time contours are generated into
+`src/data/eclipseContours.generated.ts`.
 
 ## MVP features
 
+- Persistent mobile-first navigation between Map, Horizon, Contact times,
+  Weather, Sources, and QR pages while retaining the selected event and point.
 - Tappable OpenStreetMap map, coordinate entry, and browser geolocation for a
   rough search area.
+- Complete NASA-derived totality limits and filled 100% corridor for every
+  event, plus derived partial-obscuration bands and hourly UTC time curves.
 - Ranked observing-location candidates anchored to nearby rail, bus, airport,
   ferry, or parking infrastructure. Ranking exposes eclipse, terrain,
   centre-line, and search-proximity components.
@@ -30,7 +36,8 @@ NASA sources, and centre-line points live in `src/data/eclipseEvents.ts`.
 - Local eclipse type, magnitude, obscuration, totality duration, Sun altitude,
   Sun azimuth, and distance to a NASA-derived centre line.
 - Observer elevation and an animated observer-sky view with a sampled terrain
-  silhouette, real Sun/Moon positions, C1–C4 time scrubbing, contact jumps, and
+  silhouette, real Sun/Moon positions, cardinal bearings, adjustable 30°–180°
+  field of view (75° default), C1–C4 time scrubbing, contact jumps, and
   60×/300×/600× playback.
 - Cloud forecast with explicit out-of-range and failure states.
 - Editable, removable, persistent audio markers anchored to eclipse contacts.
@@ -116,7 +123,7 @@ Implementation boundaries are in [architecture](docs/ARCHITECTURE.md).
 ## Repository layout
 
 ```text
-App.tsx                         mobile-first workspace
+App.tsx                         mobile-first multi-page SPA shell
 api/transport.ts                fixed candidate-anchor query proxy
 src/components/                presentation and charts
 src/data/                      supported eclipse definitions
