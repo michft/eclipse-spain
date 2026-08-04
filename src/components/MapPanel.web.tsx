@@ -3,6 +3,7 @@ import L from "leaflet";
 import {
   CircleMarker,
   MapContainer,
+  Pane,
   Polygon,
   Polyline,
   TileLayer,
@@ -15,6 +16,7 @@ import "leaflet/dist/leaflet.css";
 import type { MapBounds } from "../data/eclipseEvents";
 import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
+import { MAP_HEIGHT } from "../styles/layout";
 import { theme } from "../styles/theme";
 
 type ContourPath = readonly (readonly [number, number])[];
@@ -110,11 +112,11 @@ export const MapPanel = ({
 }: MapPanelProps) => {
   const [showFullPath, setShowFullPath] = useState(true);
   return (
-    <div style={{ height: 390, position: "relative", width: "100%" }}>
+    <div style={{ height: MAP_HEIGHT, position: "relative", width: "100%" }}>
       <MapContainer
         center={[location.latitude, location.longitude]}
         scrollWheelZoom
-        style={{ height: 390, width: "100%" }}
+        style={{ height: MAP_HEIGHT, width: "100%" }}
         zoom={6}
       >
     <TileLayer
@@ -206,12 +208,6 @@ export const MapPanel = ({
           </Tooltip>
         </CircleMarker>
       ))}
-    <CircleMarker
-      center={[location.latitude, location.longitude]}
-      pathOptions={{ color: "#081018", fillColor: "#7cc7ff", fillOpacity: 1 }}
-      radius={9}
-      weight={3}
-    />
     {candidates.map((candidate, index) => (
       <CircleMarker
         center={[candidate.latitude, candidate.longitude]}
@@ -225,28 +221,31 @@ export const MapPanel = ({
         weight={2}
       />
     ))}
+    <Pane name="selected-location" style={{ zIndex: 640 }}>
+      <CircleMarker
+        center={[location.latitude, location.longitude]}
+        pathOptions={{ color: "#081018", fillColor: "#7cc7ff", fillOpacity: 1 }}
+        radius={9}
+        weight={3}
+      >
+        <Tooltip pane="tooltipPane">Current point</Tooltip>
+      </CircleMarker>
+    </Pane>
         <MapClick onLocationChange={onLocationChange} />
       </MapContainer>
       <div
         aria-label="Map extent controls"
         style={{ display: "flex", gap: 4, left: 52, position: "absolute", top: 12, zIndex: 1000 }}
       >
-        <button
-          aria-pressed={showFullPath}
-          onClick={() => setShowFullPath(true)}
-          style={showFullPath ? { ...mapControlStyle, ...mapControlActiveStyle } : mapControlStyle}
-          type="button"
+        <select
+          aria-label="Map extent"
+          onChange={(event) => setShowFullPath(event.currentTarget.value === "full")}
+          style={mapControlStyle}
+          value={showFullPath ? "full" : "region"}
         >
-          Full eclipse path
-        </button>
-        <button
-          aria-pressed={!showFullPath}
-          onClick={() => setShowFullPath(false)}
-          style={!showFullPath ? { ...mapControlStyle, ...mapControlActiveStyle } : mapControlStyle}
-          type="button"
-        >
-          Selected region
-        </button>
+          <option value="full">Full eclipse path</option>
+          <option value="region">Selected region</option>
+        </select>
       </div>
     </div>
   );
@@ -262,9 +261,4 @@ const mapControlStyle = {
   fontWeight: 700,
   minHeight: 34,
   padding: "6px 9px",
-} as const;
-
-const mapControlActiveStyle = {
-  background: theme.color.accent,
-  color: theme.color.background,
 } as const;

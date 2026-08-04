@@ -9,17 +9,21 @@ import {
 import { theme } from "../styles/theme";
 
 interface EclipseContactOverlayProps {
+  compact?: boolean;
   phase: EclipsePhase;
   sky: ObserverSkyState;
 }
 
 const WIDTH = 260;
 const HEIGHT = 210;
+const COMPACT_WIDTH = 190;
+const COMPACT_HEIGHT = (COMPACT_WIDTH * HEIGHT) / WIDTH;
 const CENTER_X = WIDTH / 2;
 const CENTER_Y = HEIGHT / 2;
 const SUN_RADIUS_PIXELS = 32;
 
 export const EclipseContactOverlay = ({
+  compact = false,
   phase,
   sky,
 }: EclipseContactOverlayProps) => {
@@ -31,19 +35,21 @@ export const EclipseContactOverlay = ({
   const moonCenterY = CENTER_Y + geometry.directionY * separationPixels;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, compact && styles.compactContainer]}>
+      <View style={[styles.header, compact && styles.compactHeader]}>
         <View>
           <Text style={styles.eyebrow}>Eclipse contact</Text>
-          <Text style={styles.phase}>{phase.label}</Text>
+          <Text style={[styles.phase, compact && styles.compactPhase]}>
+            {phase.label}
+          </Text>
         </View>
-        <Text style={styles.obscuration}>
+        <Text style={[styles.obscuration, compact && styles.compactObscuration]}>
           {(sky.obscuration * 100).toFixed(2)}%
         </Text>
       </View>
       <Svg
         accessibilityLabel={`To-scale Sun and Moon contact: ${phase.label}`}
-        height={HEIGHT}
+        height={compact ? COMPACT_HEIGHT : HEIGHT}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"
       >
@@ -70,7 +76,7 @@ export const EclipseContactOverlay = ({
           strokeWidth={1}
         />
       </Svg>
-      <Text style={styles.note}>
+      <Text style={[styles.note, compact && styles.compactNote]}>
         To-scale angular view · glow is decorative
       </Text>
     </View>
@@ -85,12 +91,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
+  compactContainer: {
+    backgroundColor: "rgba(8, 16, 24, 0.94)",
+  },
   header: {
     alignItems: "flex-start",
     flexDirection: "row",
     gap: theme.space.medium,
     justifyContent: "space-between",
     padding: theme.space.medium,
+  },
+  compactHeader: {
+    flexWrap: "wrap",
+    gap: theme.space.small,
+    padding: theme.space.small,
   },
   eyebrow: {
     color: theme.color.muted,
@@ -105,16 +119,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: theme.space.xsmall,
   },
+  compactPhase: {
+    fontSize: 12,
+  },
   obscuration: {
     color: theme.color.accent,
     fontSize: 20,
     fontVariant: ["tabular-nums"],
     fontWeight: "900",
   },
+  compactObscuration: {
+    fontSize: 15,
+  },
   note: {
     color: theme.color.muted,
     fontSize: 11,
     padding: theme.space.small,
     textAlign: "center",
+  },
+  compactNote: {
+    fontSize: 9,
+    padding: theme.space.xsmall,
   },
 });

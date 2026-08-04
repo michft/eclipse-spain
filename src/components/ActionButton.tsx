@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, type ViewStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  type AccessibilityState,
+  type ViewStyle,
+} from "react-native";
 
 import { theme } from "../styles/theme";
 
 interface ActionButtonProps {
+  accessibilityState?: AccessibilityState;
   children: ReactNode;
   onPress: () => void;
   disabled?: boolean;
@@ -12,6 +19,7 @@ interface ActionButtonProps {
 }
 
 export const ActionButton = ({
+  accessibilityState,
   children,
   disabled = false,
   onPress,
@@ -20,6 +28,7 @@ export const ActionButton = ({
 }: ActionButtonProps) => (
   <Pressable
     accessibilityRole="button"
+    {...(accessibilityState ? { accessibilityState } : {})}
     disabled={disabled}
     onPress={onPress}
     style={({ pressed }) => [

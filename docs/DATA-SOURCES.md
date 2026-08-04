@@ -58,8 +58,9 @@ Astronomy Engine calculates topocentric Sun and Moon azimuth/altitude from 30
 minutes before C1 until 30 minutes after C4. The observer-sky display starts at
 45°, adjusts from 30° to 180°, labels cardinal bearings and exact whole-hour UTC
 positions, and provides time scrubbing, contact jumps, and accelerated playback.
-The sky chart projects the disc ellipses at its local angular scale. A separate
-magnified contact view uses one common angular scale for both discs. Both views
+The sky chart projects the disc ellipses at its local angular scale. A magnified
+contact inset in the same panel uses one common angular scale for both discs and
+the same simulation timeline. Both views
 use calculated angular separation directly: they do not round coordinates or
 force tangency at contact times. The path and playback rail show before/after
 periods in white and C1–C4 in orange. Only the glow around the Sun is decorative.
