@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import Svg, {
   Circle,
   Defs,
+  Ellipse,
   G,
   LinearGradient,
   Line,
@@ -17,18 +18,25 @@ import type { ContactRecord } from "../domain/audioTimeline";
 import {
   calculateObserverSky,
   CONTACT_IDS,
+  type LocalEclipseCircumstances,
   type ObserverSkyState,
 } from "../domain/eclipse";
 import type { GeoPoint } from "../domain/geo";
+import {
+  eclipseDiscGeometry,
+  eclipsePhaseAt,
+} from "../domain/eclipseOverlay";
 import type { ElevationProfileResult } from "../services/openMeteo";
 import { theme } from "../styles/theme";
 import { ActionButton } from "./ActionButton";
+import { EclipseContactOverlay } from "./EclipseContactOverlay";
 import { HorizonZoomSurface } from "./HorizonZoomSurface";
 import { TimelineSlider } from "./TimelineSlider";
 
 interface HorizonSimulatorProps {
   contacts: ContactRecord;
   elevation: ElevationProfileResult;
+  kind: LocalEclipseCircumstances["kind"];
   location: GeoPoint;
 }
 
@@ -39,8 +47,10 @@ const PAD_RIGHT = 20;
 const PAD_TOP = 18;
 const PAD_BOTTOM = 34;
 const PATH_SAMPLES = 48;
+const HOUR_MILLISECONDS = 60 * 60 * 1000;
+const CONTACT_CONTEXT_MILLISECONDS = 30 * 60 * 1000;
 const ALTITUDE_GUIDES = [0, 10, 20, 40, 60, 80] as const;
-const DEFAULT_FIELD_OF_VIEW_DEGREES = 75;
+const DEFAULT_FIELD_OF_VIEW_DEGREES = 45;
 const MINIMUM_FIELD_OF_VIEW_DEGREES = 30;
 const MAXIMUM_FIELD_OF_VIEW_DEGREES = 180;
 const FIELD_OF_VIEW_STEP_DEGREES = 5;
@@ -59,6 +69,9 @@ const normalizeAzimuth = (azimuth: number): number =>
 
 const formatUtc = (milliseconds: number): string =>
   new Date(milliseconds).toISOString().slice(11, 19) + " UTC";
+
+const formatUtcHour = (milliseconds: number): string =>
+  new Date(milliseconds).toISOString().slice(11, 16) + "Z";
 
 const interpolateTerrain = (
   samples: ElevationProfileResult["skyline"]["samples"],
@@ -94,10 +107,15 @@ const interpolateTerrain = (
 export const HorizonSimulator = ({
   contacts,
   elevation,
+  kind,
   location,
 }: HorizonSimulatorProps) => {
   const startMilliseconds = Date.parse(contacts.c1?.utc ?? "");
   const endMilliseconds = Date.parse(contacts.c4?.utc ?? "");
+  const simulationStartMilliseconds =
+    startMilliseconds - CONTACT_CONTEXT_MILLISECONDS;
+  const simulationEndMilliseconds =
+    endMilliseconds + CONTACT_CONTEXT_MILLISECONDS;
   const maximumMilliseconds = Date.parse(
     contacts.maximum?.utc ?? contacts.c1?.utc ?? "",
   );
@@ -122,38 +140,94 @@ export const HorizonSimulator = ({
   }, [elevation.skyline.centerAzimuthDegrees, elevation.skyline.fieldOfViewDegrees]);
 
   useEffect(() => {
-    if (!playing || !Number.isFinite(endMilliseconds)) {
+    if (!playing || !Number.isFinite(simulationEndMilliseconds)) {
       return;
     }
     const timer = setInterval(() => {
       setSimulatedMilliseconds((current) =>
-        Math.min(endMilliseconds, current + 100 * speed),
+        Math.min(simulationEndMilliseconds, current + 100 * speed),
       );
     }, 100);
     return () => clearInterval(timer);
-  }, [endMilliseconds, playing, speed]);
+  }, [playing, simulationEndMilliseconds, speed]);
 
   useEffect(() => {
-    if (playing && simulatedMilliseconds >= endMilliseconds) {
+    if (playing && simulatedMilliseconds >= simulationEndMilliseconds) {
       setPlaying(false);
     }
-  }, [endMilliseconds, playing, simulatedMilliseconds]);
+  }, [playing, simulatedMilliseconds, simulationEndMilliseconds]);
 
   const path = useMemo(() => {
     if (!Number.isFinite(startMilliseconds) || !Number.isFinite(endMilliseconds)) {
       return [];
     }
-    return Array.from({ length: PATH_SAMPLES + 1 }, (_, index) => {
-      const milliseconds =
-        startMilliseconds +
-        ((endMilliseconds - startMilliseconds) * index) / PATH_SAMPLES;
-      return calculateObserverSky(
+    const sampledMilliseconds = Array.from(
+      { length: PATH_SAMPLES + 1 },
+      (_, index) =>
+        simulationStartMilliseconds +
+        ((simulationEndMilliseconds - simulationStartMilliseconds) * index) /
+          PATH_SAMPLES,
+    );
+    const pathMilliseconds = [
+      ...new Set([
+        ...sampledMilliseconds,
+        simulationStartMilliseconds,
+        startMilliseconds,
+        endMilliseconds,
+        simulationEndMilliseconds,
+      ]),
+    ].sort((left, right) => left - right);
+    return pathMilliseconds.map((milliseconds) => {
+      const state = calculateObserverSky(
         location,
         new Date(milliseconds),
         elevation.observerElevationMeters,
       );
-    }).filter((state): state is ObserverSkyState => state !== null);
-  }, [elevation.observerElevationMeters, endMilliseconds, location, startMilliseconds]);
+      return state ? { milliseconds, state } : null;
+    }).filter(
+      (sample): sample is { milliseconds: number; state: ObserverSkyState } =>
+        sample !== null,
+    );
+  }, [
+    elevation.observerElevationMeters,
+    location,
+    simulationEndMilliseconds,
+    simulationStartMilliseconds,
+  ]);
+
+  const hourlyPath = useMemo(() => {
+    if (!Number.isFinite(startMilliseconds) || !Number.isFinite(endMilliseconds)) {
+      return [];
+    }
+    const firstHourMilliseconds =
+      Math.ceil(simulationStartMilliseconds / HOUR_MILLISECONDS) *
+      HOUR_MILLISECONDS;
+    const hourCount = Math.max(
+      0,
+      Math.floor(
+        (simulationEndMilliseconds - firstHourMilliseconds) / HOUR_MILLISECONDS,
+      ) + 1,
+    );
+    return Array.from({ length: hourCount }, (_, index) => {
+      const milliseconds = firstHourMilliseconds + index * HOUR_MILLISECONDS;
+      const state = calculateObserverSky(
+        location,
+        new Date(milliseconds),
+        elevation.observerElevationMeters,
+      );
+      return state ? { milliseconds, state } : null;
+    }).filter(
+      (marker): marker is { milliseconds: number; state: ObserverSkyState } =>
+        marker !== null,
+    );
+  }, [
+    elevation.observerElevationMeters,
+    endMilliseconds,
+    location,
+    simulationEndMilliseconds,
+    simulationStartMilliseconds,
+    startMilliseconds,
+  ]);
 
   const current = calculateObserverSky(
     location,
@@ -186,7 +260,7 @@ export const HorizonSimulator = ({
     90,
     Math.max(
       20,
-      ...path.flatMap((state) => [
+      ...path.flatMap(({ state }) => [
         state.sun.altitudeDegrees,
         state.moon.altitudeDegrees,
       ]),
@@ -202,9 +276,18 @@ export const HorizonSimulator = ({
     PAD_TOP +
     ((maximumAltitude - altitude) / (maximumAltitude - minimumAltitude)) *
       (HEIGHT - PAD_TOP - PAD_BOTTOM);
-  const pointsFor = (body: "sun" | "moon"): string =>
+  const pointsFor = (
+    body: "sun" | "moon",
+    segmentStartMilliseconds: number,
+    segmentEndMilliseconds: number,
+  ): string =>
     path
-      .map((state) => ({
+      .filter(
+        (sample) =>
+          sample.milliseconds >= segmentStartMilliseconds &&
+          sample.milliseconds <= segmentEndMilliseconds,
+      )
+      .map(({ state }) => ({
         altitude: state[body].altitudeDegrees,
         offset: azimuthOffset(
           state[body].azimuthDegrees,
@@ -214,6 +297,43 @@ export const HorizonSimulator = ({
       .filter((point) => Math.abs(point.offset) <= halfField)
       .map((point) => `${x(point.offset)},${y(point.altitude)}`)
       .join(" ");
+  const pathSegments = [
+    {
+      end: startMilliseconds,
+      id: "before-c1",
+      label: "before C1",
+      start: simulationStartMilliseconds,
+      stroke: theme.color.text,
+    },
+    {
+      end: endMilliseconds,
+      id: "eclipse",
+      label: "C1 to C4 eclipse",
+      start: startMilliseconds,
+      stroke: theme.color.accentStrong,
+    },
+    {
+      end: simulationEndMilliseconds,
+      id: "after-c4",
+      label: "after C4",
+      start: endMilliseconds,
+      stroke: theme.color.text,
+    },
+  ] as const;
+  const visibleHourMarkers = hourlyPath.flatMap((marker) => {
+    const sunOffset = azimuthOffset(
+      marker.state.sun.azimuthDegrees,
+      skyline.centerAzimuthDegrees,
+    );
+    const moonOffset = azimuthOffset(
+      marker.state.moon.azimuthDegrees,
+      skyline.centerAzimuthDegrees,
+    );
+    const labelOffset = (sunOffset + moonOffset) / 2;
+    return Math.abs(labelOffset) <= halfField
+      ? [{ ...marker, labelOffset, moonOffset, sunOffset }]
+      : [];
+  });
   const visibleTerrainSamples = [
     {
       azimuthOffsetDegrees: -halfField,
@@ -239,14 +359,33 @@ export const HorizonSimulator = ({
     current.sun.azimuthDegrees,
     skyline.centerAzimuthDegrees,
   );
-  const moonOffset = azimuthOffset(
-    current.moon.azimuthDegrees,
-    skyline.centerAzimuthDegrees,
-  );
-  const pixelsPerDegree =
+  const verticalPixelsPerDegree =
     (HEIGHT - PAD_TOP - PAD_BOTTOM) / (maximumAltitude - minimumAltitude);
-  const sunRadius = Math.max(7, current.sun.angularRadiusDegrees * pixelsPerDegree);
-  const moonRadius = Math.max(7, current.moon.angularRadiusDegrees * pixelsPerDegree);
+  const horizontalPixelsPerAzimuthDegree =
+    (WIDTH - PAD_LEFT - PAD_RIGHT) / fieldOfViewDegrees;
+  const horizontalPixelsPerAngularDegree =
+    horizontalPixelsPerAzimuthDegree /
+    Math.max(0.05, Math.abs(Math.cos((current.sun.altitudeDegrees * Math.PI) / 180)));
+  const phase = eclipsePhaseAt(contacts, kind, simulatedMilliseconds);
+  const discGeometry = eclipseDiscGeometry(current);
+  const sunX = x(sunOffset);
+  const sunY = y(current.sun.altitudeDegrees);
+  const renderedMoonX =
+    sunX +
+    discGeometry.directionX *
+      discGeometry.separationDegrees *
+      horizontalPixelsPerAngularDegree;
+  const renderedMoonY =
+    sunY +
+    discGeometry.directionY *
+      discGeometry.separationDegrees *
+      verticalPixelsPerDegree;
+  const sunRadiusX =
+    current.sun.angularRadiusDegrees * horizontalPixelsPerAngularDegree;
+  const sunRadiusY = current.sun.angularRadiusDegrees * verticalPixelsPerDegree;
+  const moonRadiusX =
+    current.moon.angularRadiusDegrees * horizontalPixelsPerAngularDegree;
+  const moonRadiusY = current.moon.angularRadiusDegrees * verticalPixelsPerDegree;
   const terrainAtSun = interpolateTerrain(skyline.samples, sunOffset);
   const clearance = current.sun.altitudeDegrees - terrainAtSun;
   const visibleCardinals = CARDINAL_POINTS.flatMap((cardinal) => {
@@ -273,6 +412,7 @@ export const HorizonSimulator = ({
           </Text>
         </View>
       </View>
+      <EclipseContactOverlay phase={phase} sky={current} />
       <View accessibilityLabel="Chart line labels" style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, styles.sunPathLine]} />
@@ -281,6 +421,14 @@ export const HorizonSimulator = ({
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, styles.moonPathLine]} />
           <Text style={styles.legendLabel}>Moon path</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.outsidePathLine]} />
+          <Text style={styles.legendLabel}>Outside eclipse · white</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, styles.eclipsePathLine]} />
+          <Text style={styles.legendLabel}>C1–C4 eclipse · orange</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, styles.terrainLine]} />
@@ -350,48 +498,103 @@ export const HorizonSimulator = ({
                 </SvgText>
               </G>
             ))}
-          <Polyline
-            fill="none"
-            opacity={0.55}
-            points={pointsFor("moon")}
-            stroke="#d9e2ea"
-            strokeDasharray="3 7"
-            strokeWidth={2}
-          />
-          <Polyline
-            fill="none"
-            opacity={0.8}
-            points={pointsFor("sun")}
-            stroke={theme.color.accent}
-            strokeDasharray="7 6"
-            strokeWidth={2}
-          />
+          {(["sun", "moon"] as const).flatMap((body) =>
+            pathSegments.map((segment) => (
+              <Polyline
+                accessibilityLabel={`${body === "sun" ? "Sun" : "Moon"} ${segment.label} path`}
+                fill="none"
+                key={`${body}:${segment.id}`}
+                opacity={body === "sun" ? 0.9 : 0.65}
+                points={pointsFor(body, segment.start, segment.end)}
+                stroke={segment.stroke}
+                strokeWidth={2}
+                {...(body === "moon" ? { strokeDasharray: "3 7" } : {})}
+              />
+            )),
+          )}
+          {visibleHourMarkers.map((marker) => {
+            const sunX = x(marker.sunOffset);
+            const sunY = y(marker.state.sun.altitudeDegrees);
+            const moonX = x(marker.moonOffset);
+            const moonY = y(marker.state.moon.altitudeDegrees);
+            return (
+              <G key={`utc-hour:${marker.milliseconds}`}>
+                <Line
+                  opacity={0.65}
+                  stroke={theme.color.text}
+                  strokeWidth={1}
+                  x1={sunX}
+                  x2={moonX}
+                  y1={sunY}
+                  y2={moonY}
+                />
+                <Circle
+                  cx={sunX}
+                  cy={sunY}
+                  fill={
+                    marker.milliseconds < startMilliseconds ||
+                    marker.milliseconds > endMilliseconds
+                      ? theme.color.text
+                      : theme.color.accentStrong
+                  }
+                  r={3}
+                />
+                <Circle
+                  cx={moonX}
+                  cy={moonY}
+                  fill={
+                    marker.milliseconds < startMilliseconds ||
+                    marker.milliseconds > endMilliseconds
+                      ? theme.color.text
+                      : theme.color.accentStrong
+                  }
+                  r={3}
+                />
+                <SvgText
+                  fill={
+                    marker.milliseconds < startMilliseconds ||
+                    marker.milliseconds > endMilliseconds
+                      ? theme.color.text
+                      : theme.color.accentStrong
+                  }
+                  fontSize={11}
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  x={x(marker.labelOffset)}
+                  y={Math.max(PAD_TOP + 12, Math.min(sunY, moonY) - 8)}
+                >
+                  {formatUtcHour(marker.milliseconds)}
+                </SvgText>
+              </G>
+            );
+          })}
           {Math.abs(sunOffset) <= halfField ? (
             <>
-              <Circle
-                cx={x(sunOffset)}
-                cy={y(current.sun.altitudeDegrees)}
+              <Ellipse
+                cx={sunX}
+                cy={sunY}
                 fill={theme.color.accent}
                 opacity={0.18}
-                r={sunRadius * 2.6}
+                rx={sunRadiusX * 2.6}
+                ry={sunRadiusY * 2.6}
               />
-              <Circle
-                cx={x(sunOffset)}
-                cy={y(current.sun.altitudeDegrees)}
+              <Ellipse
+                cx={sunX}
+                cy={sunY}
                 fill="#ffe69a"
-                r={sunRadius}
+                rx={sunRadiusX}
+                ry={sunRadiusY}
+              />
+              <Ellipse
+                cx={renderedMoonX}
+                cy={renderedMoonY}
+                fill="#05080c"
+                rx={moonRadiusX}
+                ry={moonRadiusY}
+                stroke="#d9e2ea"
+                strokeWidth={0.5}
               />
             </>
-          ) : null}
-          {Math.abs(moonOffset) <= halfField ? (
-            <Circle
-              cx={x(moonOffset)}
-              cy={y(current.moon.altitudeDegrees)}
-              fill="#05080c"
-              r={moonRadius}
-              stroke="#d9e2ea"
-              strokeWidth={1}
-            />
           ) : null}
           <Polygon fill="#081018" points={terrainPoints} />
           {visibleCardinals.map((cardinal) => (
@@ -445,9 +648,35 @@ export const HorizonSimulator = ({
         </HorizonZoomSurface>
       </View>
       <Text style={styles.controlLabel}>Simulation time</Text>
+      <View
+        accessibilityLabel="Playback phases: white before C1, orange from C1 to C4, white after C4"
+        style={styles.playbackTrack}
+      >
+        {pathSegments.map((segment) => (
+          <View
+            key={`playback:${segment.id}`}
+            style={[
+              styles.playbackTrackSegment,
+              { backgroundColor: segment.stroke, flex: segment.end - segment.start },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.playbackLabels}>
+        <Text style={[styles.playbackLabel, styles.playbackLabelLeft]}>
+          Before C1 · 30 min
+        </Text>
+        <Text style={[styles.playbackLabel, styles.playbackLabelCenter]}>
+          C1–C4 eclipse
+        </Text>
+        <Text style={[styles.playbackLabel, styles.playbackLabelRight]}>
+          After C4 · 30 min
+        </Text>
+      </View>
       <TimelineSlider
-        maximum={endMilliseconds}
-        minimum={startMilliseconds}
+        accessibilityLabel="Horizon simulation time"
+        maximum={simulationEndMilliseconds}
+        minimum={simulationStartMilliseconds}
         onChange={(value) => {
           setPlaying(false);
           setSimulatedMilliseconds(value);
@@ -455,8 +684,12 @@ export const HorizonSimulator = ({
         value={simulatedMilliseconds}
       />
       <View style={styles.timeBounds}>
-        <Text style={styles.timeBound}>{formatUtc(startMilliseconds)} · C1</Text>
-        <Text style={styles.timeBound}>{formatUtc(endMilliseconds)} · C4</Text>
+        <Text style={styles.timeBound}>
+          {formatUtc(simulationStartMilliseconds)} · 30 min before C1
+        </Text>
+        <Text style={styles.timeBound}>
+          {formatUtc(simulationEndMilliseconds)} · 30 min after C4
+        </Text>
       </View>
       <Text style={styles.controlLabel}>Playback controls</Text>
       <View style={styles.controls}>
@@ -466,7 +699,7 @@ export const HorizonSimulator = ({
         <ActionButton
           onPress={() =>
             setSimulatedMilliseconds((currentTime) =>
-              Math.max(startMilliseconds, currentTime - 60_000),
+              Math.max(simulationStartMilliseconds, currentTime - 60_000),
             )
           }
           secondary
@@ -476,7 +709,7 @@ export const HorizonSimulator = ({
         <ActionButton
           onPress={() =>
             setSimulatedMilliseconds((currentTime) =>
-              Math.min(endMilliseconds, currentTime + 60_000),
+              Math.min(simulationEndMilliseconds, currentTime + 60_000),
             )
           }
           secondary
@@ -495,6 +728,15 @@ export const HorizonSimulator = ({
       </View>
       <Text style={styles.controlLabel}>Jump to eclipse contact</Text>
       <View style={styles.controls}>
+        <ActionButton
+          onPress={() => {
+            setPlaying(false);
+            setSimulatedMilliseconds(simulationStartMilliseconds);
+          }}
+          secondary
+        >
+          Before C1
+        </ActionButton>
         {CONTACT_IDS.map((contactId) => {
           const contact = contacts[contactId];
           return contact ? (
@@ -510,10 +752,19 @@ export const HorizonSimulator = ({
             </ActionButton>
           ) : null;
         })}
+        <ActionButton
+          onPress={() => {
+            setPlaying(false);
+            setSimulatedMilliseconds(simulationEndMilliseconds);
+          }}
+          secondary
+        >
+          After C4
+        </ActionButton>
       </View>
       <Text style={styles.disclaimer}>
         Terrain uses a 90 m DEM sampled across a 180° view. Sun and Moon positions
-        are calculated for the selected UTC. Disc sizes are enlarged for legibility;
+        are calculated for the selected UTC. The contact view is to angular scale;
         trees, buildings, haze, cloud, and temporary obstructions are not modelled.
       </Text>
     </View>
@@ -533,8 +784,10 @@ const styles = StyleSheet.create({
   legend: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
   legendItem: { alignItems: "center", flexDirection: "row", gap: theme.space.small },
   legendLine: { borderTopWidth: 2, width: 28 },
-  sunPathLine: { borderColor: theme.color.accent, borderStyle: "dashed" },
-  moonPathLine: { borderColor: "#d9e2ea", borderStyle: "dashed" },
+  sunPathLine: { borderColor: theme.color.text },
+  moonPathLine: { borderColor: theme.color.text, borderStyle: "dotted" },
+  outsidePathLine: { borderColor: theme.color.text },
+  eclipsePathLine: { borderColor: theme.color.accentStrong },
   terrainLine: { borderColor: theme.color.sky },
   horizonLine: { borderColor: "#d9ecff" },
   legendLabel: { color: theme.color.text, fontSize: 12 },
@@ -544,6 +797,13 @@ const styles = StyleSheet.create({
   compassKey: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
   compassLabel: { color: theme.color.text, fontSize: 12, fontWeight: "700" },
   controlLabel: { color: theme.color.text, fontSize: 14, fontWeight: "800" },
+  playbackTrack: { flexDirection: "row", height: 8, overflow: "hidden" },
+  playbackTrackSegment: { minWidth: 1 },
+  playbackLabels: { flexDirection: "row", justifyContent: "space-between" },
+  playbackLabel: { color: theme.color.muted, flex: 1, fontSize: 10 },
+  playbackLabelLeft: { textAlign: "left" },
+  playbackLabelCenter: { textAlign: "center" },
+  playbackLabelRight: { textAlign: "right" },
   timeBounds: { flexDirection: "row", justifyContent: "space-between" },
   timeBound: { color: theme.color.muted, fontSize: 11, fontVariant: ["tabular-nums"] },
   controls: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.small },

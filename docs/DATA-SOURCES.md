@@ -54,11 +54,15 @@ batch limit. It converts terrain height relative to the observer into apparent a
 includes geometric Earth-curvature drop, and uses the highest angle on each ray
 as the terrain silhouette.
 
-Astronomy Engine calculates topocentric Sun and Moon azimuth/altitude throughout
-C1–C4. The observer-sky display starts at 75°, adjusts from 30° to 180°, labels
-cardinal bearings, and provides time scrubbing, contact jumps, and accelerated
-playback. Body discs are enlarged for legibility; their displayed size is not an
-angular scale reference.
+Astronomy Engine calculates topocentric Sun and Moon azimuth/altitude from 30
+minutes before C1 until 30 minutes after C4. The observer-sky display starts at
+45°, adjusts from 30° to 180°, labels cardinal bearings and exact whole-hour UTC
+positions, and provides time scrubbing, contact jumps, and accelerated playback.
+The sky chart projects the disc ellipses at its local angular scale. A separate
+magnified contact view uses one common angular scale for both discs. Both views
+use calculated angular separation directly: they do not round coordinates or
+force tangency at contact times. The path and playback rail show before/after
+periods in white and C1–C4 in orange. Only the glow around the Sun is decorative.
 
 The skyline does not model atmospheric refraction, local survey detail, trees,
 buildings, temporary structures, or haze. It intentionally has no fixed 2°
