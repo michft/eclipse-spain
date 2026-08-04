@@ -46,6 +46,7 @@ import {
   readSharedSelection,
   updateShareUrl,
 } from "./src/services/share";
+import { MAP_HEIGHT } from "./src/styles/layout";
 import { theme } from "./src/styles/theme";
 
 const defaultLocation = (event: EclipseEventDefinition): GeoPoint =>
@@ -186,6 +187,7 @@ export default function App() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState("Copy link");
   const [activePage, setActivePage] = useState<AppPage>("home");
+  const [eventMenuOpen, setEventMenuOpen] = useState(false);
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
@@ -233,6 +235,7 @@ export default function App() {
 
   const selectEvent = (nextEventId: EclipseEventId): void => {
     const nextEvent = getEclipseEvent(nextEventId);
+    setEventMenuOpen(false);
     setEventId(nextEventId);
     selectLocation(defaultLocation(nextEvent));
   };
@@ -298,16 +301,28 @@ export default function App() {
         </View>
         <View style={styles.headerControls}>
           <View style={styles.eventSelector}>
-            {ECLIPSE_EVENTS.map((event) => (
-              <ActionButton
-                key={event.id}
-                onPress={() => selectEvent(event.id)}
-                secondary={event.id !== selectedEvent.id}
-                style={styles.miniEventButton}
-              >
-                {event.region}
-              </ActionButton>
-            ))}
+            <ActionButton
+              accessibilityState={{ expanded: eventMenuOpen }}
+              onPress={() => setEventMenuOpen((open) => !open)}
+              secondary
+              style={styles.miniEventButton}
+            >
+              Event · {selectedEvent.region} ▾
+            </ActionButton>
+            {eventMenuOpen ? (
+              <View accessibilityLabel="Eclipse event menu" style={styles.eventOptions}>
+                {ECLIPSE_EVENTS.map((event) => (
+                  <ActionButton
+                    key={event.id}
+                    onPress={() => selectEvent(event.id)}
+                    secondary={event.id !== selectedEvent.id}
+                    style={styles.miniEventButton}
+                  >
+                    {event.region}
+                  </ActionButton>
+                ))}
+              </View>
+            ) : null}
           </View>
           <ScrollView
             contentContainerStyle={styles.pageNavigation}
@@ -682,6 +697,9 @@ const styles = StyleSheet.create({
     gap: theme.space.small,
   },
   eventSelector: {
+    gap: theme.space.xsmall,
+  },
+  eventOptions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.space.xsmall,
@@ -725,13 +743,13 @@ const styles = StyleSheet.create({
     marginTop: theme.space.xsmall,
   },
   mapContainer: {
-    flex: 1,
+    height: MAP_HEIGHT,
     position: "relative",
   },
   floatingCard: {
     backgroundColor: theme.color.surfaceRaised,
     borderRadius: theme.radius.medium,
-    bottom: 80,
+    bottom: theme.space.medium,
     left: theme.space.medium,
     paddingHorizontal: theme.space.small,
     paddingVertical: theme.space.small,
@@ -741,7 +759,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     width: 180,
-    zIndex: 10,
+    zIndex: 1100,
   },
   mapLegend: {
     backgroundColor: "rgba(8, 16, 24, 0.88)",
@@ -752,6 +770,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: theme.space.small,
     top: 60,
+    zIndex: 1100,
   },
   mapLegendTitle: {
     color: theme.color.text,

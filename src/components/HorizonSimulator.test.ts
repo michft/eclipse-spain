@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ContactRecord } from "../domain/audioTimeline";
 import type { ElevationProfileResult } from "../services/openMeteo";
 import { theme } from "../styles/theme";
+import { ActionButton } from "./ActionButton";
 
 const mocks = vi.hoisted(() => ({
   sliderProps: [] as Record<string, unknown>[],
@@ -160,12 +161,8 @@ describe("HorizonSimulator", () => {
         "Eclipse contact",
         "Totality · Sun fully obscured",
         "To-scale angular view · glow is decorative",
-        "Field of view",
         "Simulation time",
-        "Playback controls",
-        "Jump to eclipse contact",
-        "Before C1",
-        "After C4",
+        "Step ▾",
         "Outside eclipse · white",
         "C1–C4 eclipse · orange",
       ]),
@@ -175,8 +172,26 @@ describe("HorizonSimulator", () => {
       .findAllByType(Text)
       .map((node) => node.children.join(""));
     expect(visibleText).toEqual(
-      expect.arrayContaining(["45°", "N 0°", "E 90°", "S 180°", "W 270°"]),
+      expect.arrayContaining([
+        "N 0°",
+        "E 90°",
+        "S 180°",
+        "W 270°",
+        "View · 45° ▾",
+        "Speed · 300× ▾",
+        "Jump · Maximum ▾",
+        "-30m",
+        "+30m",
+        "C1",
+        "C2",
+        "Max",
+        "C3",
+        "C4",
+      ]),
     );
+    expect(visibleText).not.toContain("Before C1 · 30 min");
+    expect(visibleText).not.toContain("C1–C4 eclipse");
+    expect(visibleText).not.toContain("After C4 · 30 min");
 
     const altitudeLabels = renderer?.root
       .findAllByType(SvgText)
@@ -197,20 +212,138 @@ describe("HorizonSimulator", () => {
       ]),
     );
 
-    const fieldOfViewSlider = mocks.sliderProps.find(
-      (props) => props.accessibilityLabel === "Horizon field of view",
+    expect(mocks.sliderProps).toHaveLength(1);
+    expect(mocks.sliderProps[0]).toEqual(
+      expect.objectContaining({
+        accessibilityLabel: "Horizon simulation time",
+        accessibilityValueText: "18:26:00 UTC",
+        hideThumb: true,
+        transparentTrack: true,
+      }),
     );
-    expect(fieldOfViewSlider).toEqual(
-      expect.objectContaining({ maximum: 180, minimum: 30, step: 5, value: 45 }),
+    expect(
+      renderer?.root.findAll(
+        (node) => node.props.accessibilityLabel === "Eclipse disc inset",
+      ),
+    ).toHaveLength(1);
+    const skyPlot = renderer?.root.find(
+      (node) => node.props.accessibilityLabel === "Observer sky plot",
     );
-    const onFieldOfViewChange = fieldOfViewSlider?.onChange;
-    if (typeof onFieldOfViewChange !== "function") {
-      throw new Error("Horizon field-of-view control was not interactive.");
+    await act(async () => {
+      skyPlot?.props.onLayout({ nativeEvent: { layout: { width: 1200 } } });
+    });
+    expect(
+      renderer?.root.find(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "Animated observer sky showing Sun and Moon above the sampled terrain horizon",
+      ).props.viewBox,
+    ).toBe("0 0 1200 360");
+    expect(
+      renderer?.root.findAll(
+        (node) => node.props.accessibilityLabel === "Simulation time pin",
+      ),
+    ).toHaveLength(1);
+    const onTimelineFocusChange = mocks.sliderProps[0]?.onFocusChange;
+    if (typeof onTimelineFocusChange !== "function") {
+      throw new Error("Timeline focus state was not connected to the visible pin.");
     }
-    await act(async () => onFieldOfViewChange(180));
+    await act(async () => onTimelineFocusChange(true));
+    expect(
+      renderer?.root.findAll(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "Simulation time pin focus indicator",
+      ),
+    ).toHaveLength(1);
+    await act(async () => onTimelineFocusChange(false));
+    expect(
+      renderer?.root.findAll(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "Simulation time pin focus indicator",
+      ),
+    ).toHaveLength(0);
+    expect(
+      renderer?.root
+        .findAll(
+          (node) =>
+            typeof node.props.accessibilityLabel === "string" &&
+            node.props.accessibilityLabel.endsWith("timeline fork"),
+        )
+        .map((node) => node.props.accessibilityLabel),
+    ).toEqual([
+      "C2 timeline fork",
+      "Max timeline fork",
+      "C3 timeline fork",
+    ]);
+    expect(
+      renderer?.root
+        .findAll(
+          (node) =>
+            typeof node.props.accessibilityLabel === "string" &&
+            node.props.accessibilityLabel.endsWith("timeline marker"),
+        )
+        .map((node) => node.props.accessibilityLabel),
+    ).toEqual([
+      "C1 timeline marker",
+      "C2 timeline marker",
+      "Max timeline marker",
+      "C3 timeline marker",
+      "C4 timeline marker",
+    ]);
+
+    const button = (label: string) =>
+      renderer?.root
+        .findAllByType(ActionButton)
+        .find((node) =>
+          node.findAllByType(Text).some((textNode) =>
+            textNode.children.join("") === label,
+          ),
+        );
+    expect(button("180°")).toBeUndefined();
+    await act(async () => button("View · 45° ▾")?.props.onPress());
+    expect(button("180°")).toBeDefined();
+    expect(button("View · 45° ▾")?.props.accessibilityState).toEqual({
+      expanded: true,
+    });
+    await act(async () => button("180°")?.props.onPress());
+    expect(button("180°")).toBeUndefined();
     expect(
       renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
-    ).toContain("180°");
+    ).toContain("View · 180° ▾");
+    expect(button("View · 180° ▾")?.props.accessibilityState).toEqual({
+      expanded: false,
+    });
+
+    expect(button("−1 min")).toBeUndefined();
+    await act(async () => button("Step ▾")?.props.onPress());
+    expect(button("−1 min")).toBeDefined();
+    expect(button("+1 min")).toBeDefined();
+    await act(async () => button("+1 min")?.props.onPress());
+    expect(
+      renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
+    ).toContain("18:27:00 UTC");
+
+    await act(async () => button("Jump · C3 ▾")?.props.onPress());
+    expect(button("−1 min")).toBeUndefined();
+    expect(button("Jump · C3 ▾")?.props.accessibilityState).toEqual({
+      expanded: true,
+    });
+    for (const contactLabel of ["C1", "C2", "Maximum", "C3", "C4"]) {
+      expect(button(contactLabel)).toBeDefined();
+    }
+    await act(async () => button("Before C1")?.props.onPress());
+    await act(async () => button("Step ▾")?.props.onPress());
+    await act(async () => button("−1 min")?.props.onPress());
+    expect(
+      renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
+    ).toContain("17:00:00 UTC");
+    await act(async () => button("Jump · Before C1 ▾")?.props.onPress());
+    await act(async () => button("C1")?.props.onPress());
+    expect(
+      renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
+    ).toContain("17:30:00 UTC");
 
     const simulationSlider = mocks.sliderProps.find(
       (props) => props.accessibilityLabel === "Horizon simulation time",
@@ -249,5 +382,50 @@ describe("HorizonSimulator", () => {
     expect(
       pathLines?.filter((node) => node.props.stroke === theme.color.accentStrong),
     ).toHaveLength(2);
+  });
+
+  it("omits timeline markers with invalid contact times", async () => {
+    const invalidContacts: ContactRecord = {
+      ...contacts,
+      c2: { ...contacts.c2!, utc: "invalid-c2" },
+      maximum: { ...contacts.maximum!, utc: "invalid-maximum" },
+      c3: { ...contacts.c3!, utc: "invalid-c3" },
+    };
+
+    await act(async () => {
+      renderer = create(
+        createElement(HorizonSimulator, {
+          contacts: invalidContacts,
+          elevation,
+          kind: "total",
+          location: { latitude: 43.3717, longitude: -6.1883 },
+        }),
+      );
+    });
+
+    expect(
+      renderer?.root
+        .findAll(
+          (node) =>
+            typeof node.props.accessibilityLabel === "string" &&
+            node.props.accessibilityLabel.endsWith("timeline marker"),
+        )
+        .map((node) => node.props.accessibilityLabel),
+    ).toEqual(["C1 timeline marker", "C4 timeline marker"]);
+
+    const button = (label: string) =>
+      renderer?.root
+        .findAllByType(ActionButton)
+        .find((node) =>
+          node.findAllByType(Text).some((textNode) =>
+            textNode.children.join("") === label,
+          ),
+        );
+    await act(async () => button("Jump · C1 ▾")?.props.onPress());
+    expect(button("C1")).toBeDefined();
+    expect(button("C4")).toBeDefined();
+    for (const invalidContactLabel of ["C2", "Maximum", "C3"]) {
+      expect(button(invalidContactLabel)).toBeUndefined();
+    }
   });
 });

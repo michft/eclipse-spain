@@ -40,6 +40,19 @@ interface HorizonSimulatorProps {
   location: GeoPoint;
 }
 
+interface MenuOption {
+  active?: boolean;
+  label: string;
+  value: number;
+}
+
+interface OptionMenuProps {
+  accessibilityLabel: string;
+  onClose: () => void;
+  onSelect: (value: number) => void;
+  options: readonly MenuOption[];
+}
+
 const WIDTH = 720;
 const HEIGHT = 360;
 const PAD_LEFT = 42;
@@ -54,12 +67,20 @@ const DEFAULT_FIELD_OF_VIEW_DEGREES = 45;
 const MINIMUM_FIELD_OF_VIEW_DEGREES = 30;
 const MAXIMUM_FIELD_OF_VIEW_DEGREES = 180;
 const FIELD_OF_VIEW_STEP_DEGREES = 5;
+const FIELD_OF_VIEW_OPTIONS = [30, 45, 75, 120, 180] as const;
 const CARDINAL_POINTS = [
   { bearing: 0, label: "N" },
   { bearing: 90, label: "E" },
   { bearing: 180, label: "S" },
   { bearing: 270, label: "W" },
 ] as const;
+const CONTACT_TIMELINE_LABEL_LAYOUT = {
+  c1: { forked: false, labelOffset: 0 },
+  c2: { forked: true, labelOffset: -64 },
+  maximum: { forked: true, labelOffset: 0 },
+  c3: { forked: true, labelOffset: 64 },
+  c4: { forked: false, labelOffset: 0 },
+} as const;
 
 const azimuthOffset = (azimuth: number, center: number): number =>
   ((azimuth - center + 540) % 360) - 180;
@@ -104,6 +125,29 @@ const interpolateTerrain = (
   return last.terrainAngleDegrees;
 };
 
+const OptionMenu = ({
+  accessibilityLabel,
+  onClose,
+  onSelect,
+  options,
+}: OptionMenuProps) => (
+  <View accessibilityLabel={accessibilityLabel} style={styles.menuOptions}>
+    {options.map((option) => (
+      <ActionButton
+        accessibilityState={{ selected: option.active }}
+        key={option.label}
+        onPress={() => {
+          onSelect(option.value);
+          onClose();
+        }}
+        secondary={!option.active}
+      >
+        {option.label}
+      </ActionButton>
+    ))}
+  </View>
+);
+
 export const HorizonSimulator = ({
   contacts,
   elevation,
@@ -116,17 +160,23 @@ export const HorizonSimulator = ({
     startMilliseconds - CONTACT_CONTEXT_MILLISECONDS;
   const simulationEndMilliseconds =
     endMilliseconds + CONTACT_CONTEXT_MILLISECONDS;
-  const maximumMilliseconds = Date.parse(
-    contacts.maximum?.utc ?? contacts.c1?.utc ?? "",
-  );
+  const parsedMaximumMilliseconds = Date.parse(contacts.maximum?.utc ?? "");
+  const maximumMilliseconds = Number.isFinite(parsedMaximumMilliseconds)
+    ? parsedMaximumMilliseconds
+    : startMilliseconds;
   const [simulatedMilliseconds, setSimulatedMilliseconds] = useState(
     maximumMilliseconds,
   );
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(300);
+  const [openMenu, setOpenMenu] = useState<
+    "jump" | "speed" | "step" | "view" | null
+  >(null);
   const [fieldOfViewDegrees, setFieldOfViewDegrees] = useState(
     Math.min(DEFAULT_FIELD_OF_VIEW_DEGREES, elevation.skyline.fieldOfViewDegrees),
   );
+  const [chartWidth, setChartWidth] = useState(WIDTH);
+  const [timelineFocused, setTimelineFocused] = useState(false);
 
   useEffect(() => {
     setPlaying(false);
@@ -271,7 +321,7 @@ export const HorizonSimulator = ({
   const x = (offset: number): number =>
     PAD_LEFT +
     ((offset + halfField) / fieldOfViewDegrees) *
-      (WIDTH - PAD_LEFT - PAD_RIGHT);
+      (chartWidth - PAD_LEFT - PAD_RIGHT);
   const y = (altitude: number): number =>
     PAD_TOP +
     ((maximumAltitude - altitude) / (maximumAltitude - minimumAltitude)) *
@@ -320,6 +370,28 @@ export const HorizonSimulator = ({
       stroke: theme.color.text,
     },
   ] as const;
+  const timelineLeft = (milliseconds: number): `${number}%` => {
+    const duration = simulationEndMilliseconds - simulationStartMilliseconds;
+    const percent =
+      duration <= 0
+        ? 0
+        : ((milliseconds - simulationStartMilliseconds) / duration) * 100;
+    return `${Math.max(0, Math.min(100, percent))}%`;
+  };
+  const contactTimelineMarkers = CONTACT_IDS.flatMap((contactId) => {
+    const contact = contacts[contactId];
+    if (!contact) return [];
+    const milliseconds = Date.parse(contact.utc);
+    if (!Number.isFinite(milliseconds)) return [];
+    return [
+      {
+        id: contactId,
+        label: contactId === "maximum" ? "Max" : contactId.toUpperCase(),
+        ...CONTACT_TIMELINE_LABEL_LAYOUT[contactId],
+        milliseconds,
+      },
+    ];
+  });
   const visibleHourMarkers = hourlyPath.flatMap((marker) => {
     const sunOffset = azimuthOffset(
       marker.state.sun.azimuthDegrees,
@@ -362,7 +434,7 @@ export const HorizonSimulator = ({
   const verticalPixelsPerDegree =
     (HEIGHT - PAD_TOP - PAD_BOTTOM) / (maximumAltitude - minimumAltitude);
   const horizontalPixelsPerAzimuthDegree =
-    (WIDTH - PAD_LEFT - PAD_RIGHT) / fieldOfViewDegrees;
+    (chartWidth - PAD_LEFT - PAD_RIGHT) / fieldOfViewDegrees;
   const horizontalPixelsPerAngularDegree =
     horizontalPixelsPerAzimuthDegree /
     Math.max(0.05, Math.abs(Math.cos((current.sun.altitudeDegrees * Math.PI) / 180)));
@@ -395,6 +467,20 @@ export const HorizonSimulator = ({
     );
     return Math.abs(offset) <= halfField ? [{ ...cardinal, offset }] : [];
   });
+  const jumpLabel =
+    simulatedMilliseconds === simulationStartMilliseconds
+      ? "Before C1"
+      : simulatedMilliseconds === simulationEndMilliseconds
+        ? "After C4"
+        : CONTACT_IDS.flatMap((contactId) => {
+            const contact = contacts[contactId];
+            return contact && Date.parse(contact.utc) === simulatedMilliseconds
+              ? [contactId === "maximum" ? "Maximum" : contactId.toUpperCase()]
+              : [];
+          })[0] ?? "Choose";
+  const toggleMenu = (
+    menu: NonNullable<typeof openMenu>,
+  ): void => setOpenMenu((currentMenu) => (currentMenu === menu ? null : menu));
 
   return (
     <View style={styles.container}>
@@ -412,7 +498,6 @@ export const HorizonSimulator = ({
           </Text>
         </View>
       </View>
-      <EclipseContactOverlay phase={phase} sky={current} />
       <View accessibilityLabel="Chart line labels" style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, styles.sunPathLine]} />
@@ -439,20 +524,8 @@ export const HorizonSimulator = ({
           <Text style={styles.legendLabel}>Astronomical horizon (0° altitude)</Text>
         </View>
       </View>
-      <View style={styles.fieldOfViewHeader}>
-        <Text style={styles.controlLabel}>Field of view</Text>
-        <Text style={styles.fieldOfViewValue}>{fieldOfViewDegrees.toFixed(0)}°</Text>
-      </View>
-      <TimelineSlider
-        accessibilityLabel="Horizon field of view"
-        maximum={maximumFieldOfViewDegrees}
-        minimum={MINIMUM_FIELD_OF_VIEW_DEGREES}
-        onChange={changeFieldOfView}
-        step={FIELD_OF_VIEW_STEP_DEGREES}
-        value={fieldOfViewDegrees}
-      />
       <Text style={styles.helperText}>
-        Drag the control, or focus the chart then scroll, to zoom from 30° to 180°.
+        Use the View menu, or focus the chart then scroll, to zoom from 30° to 180°.
       </Text>
       <View accessibilityLabel="Cardinal bearings" style={styles.compassKey}>
         {CARDINAL_POINTS.map((cardinal) => (
@@ -465,11 +538,20 @@ export const HorizonSimulator = ({
         <HorizonZoomSurface
           onZoomBy={(degrees) => changeFieldOfView(fieldOfViewDegrees + degrees)}
         >
-          <View style={styles.skyFrame}>
+          <View
+            accessibilityLabel="Observer sky plot"
+            onLayout={(event) => {
+              const nextWidth = event.nativeEvent.layout.width;
+              if (nextWidth > 0 && nextWidth !== chartWidth) {
+                setChartWidth(nextWidth);
+              }
+            }}
+            style={styles.skyFrame}
+          >
           <Svg
             accessibilityLabel="Animated observer sky showing Sun and Moon above the sampled terrain horizon"
             height={HEIGHT}
-            viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+            viewBox={`0 0 ${chartWidth} ${HEIGHT}`}
             width="100%"
           >
           <Defs>
@@ -479,7 +561,7 @@ export const HorizonSimulator = ({
               <Stop offset="1" stopColor="#d28a45" />
             </LinearGradient>
           </Defs>
-          <Rect fill="url(#sky)" height={HEIGHT} width={WIDTH} />
+          <Rect fill="url(#sky)" height={HEIGHT} width={chartWidth} />
           {ALTITUDE_GUIDES
             .filter((altitude) => altitude <= maximumAltitude)
             .map((altitude) => (
@@ -489,7 +571,7 @@ export const HorizonSimulator = ({
                   stroke="#d9ecff"
                   strokeWidth={altitude === 0 ? 2 : 1}
                   x1={PAD_LEFT}
-                  x2={WIDTH - PAD_RIGHT}
+                  x2={chartWidth - PAD_RIGHT}
                   y1={y(altitude)}
                   y2={y(altitude)}
                 />
@@ -638,51 +720,131 @@ export const HorizonSimulator = ({
             fill="#d9ecff"
             fontSize={11}
             textAnchor="end"
-            x={WIDTH - PAD_RIGHT}
+            x={chartWidth - PAD_RIGHT}
             y={HEIGHT - 10}
           >
             {normalizeAzimuth(skyline.centerAzimuthDegrees + halfField).toFixed(0)}° az
           </SvgText>
           </Svg>
+          <View
+            accessibilityLabel="Eclipse disc inset"
+            pointerEvents="none"
+            style={styles.contactInset}
+          >
+            <EclipseContactOverlay compact phase={phase} sky={current} />
+          </View>
           </View>
         </HorizonZoomSurface>
       </View>
       <Text style={styles.controlLabel}>Simulation time</Text>
-      <View
-        accessibilityLabel="Playback phases: white before C1, orange from C1 to C4, white after C4"
-        style={styles.playbackTrack}
-      >
-        {pathSegments.map((segment) => (
+      <View style={styles.timelineStack}>
+        <View pointerEvents="none" style={styles.timelineContextLabels}>
+          <Text style={styles.timelineContextLabel}>-30m</Text>
+          <Text style={styles.timelineContextLabel}>+30m</Text>
+        </View>
+        <View
+          accessibilityLabel="Playback phases: white before C1, orange from C1 to C4, white after C4"
+          pointerEvents="none"
+          style={styles.playbackTrack}
+        >
+          {pathSegments.map((segment) => (
+            <View
+              key={`playback:${segment.id}`}
+              style={[
+                styles.playbackTrackSegment,
+                {
+                  backgroundColor: segment.stroke,
+                  flex: segment.end - segment.start,
+                },
+              ]}
+            />
+          ))}
+        </View>
+        {contactTimelineMarkers.map((marker) => (
           <View
-            key={`playback:${segment.id}`}
+            accessibilityLabel={`${marker.label} timeline marker`}
+            key={marker.id}
+            pointerEvents="none"
             style={[
-              styles.playbackTrackSegment,
-              { backgroundColor: segment.stroke, flex: segment.end - segment.start },
+              styles.contactTimelineMarker,
+              { left: timelineLeft(marker.milliseconds) },
             ]}
-          />
+          >
+            <Text
+              style={[
+                styles.contactTimelineMarkerLabel,
+                {
+                  transform: [{ translateX: marker.labelOffset }],
+                },
+              ]}
+            >
+              {marker.label}
+            </Text>
+            {marker.labelOffset !== 0 ? (
+              <>
+                <View
+                  style={[
+                    styles.contactTimelineForkArm,
+                    {
+                      left: Math.min(0, marker.labelOffset),
+                      width: Math.abs(marker.labelOffset),
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.contactTimelineForkTip,
+                    { left: marker.labelOffset - 1 },
+                  ]}
+                />
+              </>
+            ) : null}
+            <View
+              accessibilityLabel={
+                marker.forked ? `${marker.label} timeline fork` : undefined
+              }
+              style={[
+                styles.contactTimelineMarkerLine,
+                marker.forked && styles.contactTimelineMarkerLineForked,
+              ]}
+            />
+          </View>
         ))}
+        <View style={styles.timelineSliderHitArea}>
+          <TimelineSlider
+            accessibilityLabel="Horizon simulation time"
+            accessibilityValueText={formatUtc(simulatedMilliseconds)}
+            hideThumb
+            maximum={simulationEndMilliseconds}
+            minimum={simulationStartMilliseconds}
+            onChange={(value) => {
+              setOpenMenu(null);
+              setPlaying(false);
+              setSimulatedMilliseconds(value);
+            }}
+            onFocusChange={setTimelineFocused}
+            transparentTrack
+            value={simulatedMilliseconds}
+          />
+        </View>
+        <View
+          accessibilityLabel="Simulation time pin"
+          pointerEvents="none"
+          style={[
+            styles.timelinePin,
+            { left: timelineLeft(simulatedMilliseconds) },
+          ]}
+        >
+          {timelineFocused ? (
+            <View
+              accessibilityLabel="Simulation time pin focus indicator"
+              style={styles.timelinePinFocusIndicator}
+            />
+          ) : null}
+          <View style={styles.timelinePinHead} />
+          <View style={styles.timelinePinStem} />
+        </View>
       </View>
-      <View style={styles.playbackLabels}>
-        <Text style={[styles.playbackLabel, styles.playbackLabelLeft]}>
-          Before C1 · 30 min
-        </Text>
-        <Text style={[styles.playbackLabel, styles.playbackLabelCenter]}>
-          C1–C4 eclipse
-        </Text>
-        <Text style={[styles.playbackLabel, styles.playbackLabelRight]}>
-          After C4 · 30 min
-        </Text>
-      </View>
-      <TimelineSlider
-        accessibilityLabel="Horizon simulation time"
-        maximum={simulationEndMilliseconds}
-        minimum={simulationStartMilliseconds}
-        onChange={(value) => {
-          setPlaying(false);
-          setSimulatedMilliseconds(value);
-        }}
-        value={simulatedMilliseconds}
-      />
       <View style={styles.timeBounds}>
         <Text style={styles.timeBound}>
           {formatUtc(simulationStartMilliseconds)} · 30 min before C1
@@ -691,77 +853,117 @@ export const HorizonSimulator = ({
           {formatUtc(simulationEndMilliseconds)} · 30 min after C4
         </Text>
       </View>
-      <Text style={styles.controlLabel}>Playback controls</Text>
-      <View style={styles.controls}>
-        <ActionButton onPress={() => setPlaying((currentPlaying) => !currentPlaying)}>
+      <View accessibilityLabel="Horizon controls" style={styles.controlBar}>
+        <ActionButton
+          onPress={() => {
+            setOpenMenu(null);
+            setPlaying((currentPlaying) => !currentPlaying);
+          }}
+        >
           {playing ? "Pause" : "Play"}
         </ActionButton>
         <ActionButton
-          onPress={() =>
-            setSimulatedMilliseconds((currentTime) =>
-              Math.max(simulationStartMilliseconds, currentTime - 60_000),
-            )
-          }
+          accessibilityState={{ expanded: openMenu === "view" }}
+          onPress={() => toggleMenu("view")}
           secondary
         >
-          −1 min
+          View · {fieldOfViewDegrees.toFixed(0)}° ▾
         </ActionButton>
         <ActionButton
-          onPress={() =>
-            setSimulatedMilliseconds((currentTime) =>
-              Math.min(simulationEndMilliseconds, currentTime + 60_000),
-            )
-          }
+          accessibilityState={{ expanded: openMenu === "step" }}
+          onPress={() => toggleMenu("step")}
           secondary
         >
-          +1 min
+          Step ▾
         </ActionButton>
-        {[60, 300, 600].map((candidateSpeed) => (
-          <ActionButton
-            key={candidateSpeed}
-            onPress={() => setSpeed(candidateSpeed)}
-            secondary={speed !== candidateSpeed}
-          >
-            {candidateSpeed}×
-          </ActionButton>
-        ))}
-      </View>
-      <Text style={styles.controlLabel}>Jump to eclipse contact</Text>
-      <View style={styles.controls}>
         <ActionButton
-          onPress={() => {
-            setPlaying(false);
-            setSimulatedMilliseconds(simulationStartMilliseconds);
-          }}
+          accessibilityState={{ expanded: openMenu === "speed" }}
+          onPress={() => toggleMenu("speed")}
           secondary
         >
-          Before C1
+          Speed · {speed}× ▾
         </ActionButton>
-        {CONTACT_IDS.map((contactId) => {
-          const contact = contacts[contactId];
-          return contact ? (
-            <ActionButton
-              key={contactId}
-              onPress={() => {
-                setPlaying(false);
-                setSimulatedMilliseconds(Date.parse(contact.utc));
-              }}
-              secondary
-            >
-              {contactId.toUpperCase()}
-            </ActionButton>
-          ) : null;
-        })}
         <ActionButton
-          onPress={() => {
-            setPlaying(false);
-            setSimulatedMilliseconds(simulationEndMilliseconds);
-          }}
+          accessibilityState={{ expanded: openMenu === "jump" }}
+          onPress={() => toggleMenu("jump")}
           secondary
         >
-          After C4
+          Jump · {jumpLabel} ▾
         </ActionButton>
       </View>
+      {openMenu === "view" ? (
+        <OptionMenu
+          accessibilityLabel="Field of view menu"
+          onClose={() => setOpenMenu(null)}
+          onSelect={changeFieldOfView}
+          options={FIELD_OF_VIEW_OPTIONS.filter(
+            (candidateField) => candidateField <= maximumFieldOfViewDegrees,
+          ).map((candidateField) => ({
+            active: fieldOfViewDegrees === candidateField,
+            label: `${candidateField}°`,
+            value: candidateField,
+          }))}
+        />
+      ) : null}
+      {openMenu === "step" ? (
+        <OptionMenu
+          accessibilityLabel="Time step menu"
+          onClose={() => setOpenMenu(null)}
+          onSelect={(milliseconds) => {
+            setPlaying(false);
+            setSimulatedMilliseconds((currentTime) =>
+              Math.max(
+                simulationStartMilliseconds,
+                Math.min(
+                  simulationEndMilliseconds,
+                  currentTime + milliseconds,
+                ),
+              ),
+            );
+          }}
+          options={[
+            { label: "−1 min", milliseconds: -60_000 },
+            { label: "+1 min", milliseconds: 60_000 },
+          ].map((option) => ({ ...option, value: option.milliseconds }))}
+        />
+      ) : null}
+      {openMenu === "speed" ? (
+        <OptionMenu
+          accessibilityLabel="Playback speed menu"
+          onClose={() => setOpenMenu(null)}
+          onSelect={setSpeed}
+          options={[60, 300, 600].map((candidateSpeed) => ({
+            active: speed === candidateSpeed,
+            label: `${candidateSpeed}×`,
+            value: candidateSpeed,
+          }))}
+        />
+      ) : null}
+      {openMenu === "jump" ? (
+        <OptionMenu
+          accessibilityLabel="Eclipse contact menu"
+          onClose={() => setOpenMenu(null)}
+          onSelect={(milliseconds) => {
+            setPlaying(false);
+            setSimulatedMilliseconds(milliseconds);
+          }}
+          options={[
+            { label: "Before C1", value: simulationStartMilliseconds },
+            ...CONTACT_IDS.flatMap((contactId) => {
+              const contact = contacts[contactId];
+              const milliseconds = Date.parse(contact?.utc ?? "");
+              return contact && Number.isFinite(milliseconds)
+                ? [{
+                    label:
+                      contactId === "maximum" ? "Maximum" : contactId.toUpperCase(),
+                    value: milliseconds,
+                  }]
+                : [];
+            }),
+            { label: "After C4", value: simulationEndMilliseconds },
+          ]}
+        />
+      ) : null}
       <Text style={styles.disclaimer}>
         Terrain uses a 90 m DEM sampled across a 180° view. Sun and Moon positions
         are calculated for the selected UTC. The contact view is to angular scale;
@@ -780,7 +982,8 @@ const styles = StyleSheet.create({
   metricText: { color: theme.color.text, fontSize: 13, fontVariant: ["tabular-nums"] },
   blocked: { color: theme.color.warning },
   chartBleed: { marginHorizontal: -theme.space.medium },
-  skyFrame: { borderColor: theme.color.border, borderWidth: 1, borderLeftWidth: 0, borderRightWidth: 0, overflow: "hidden" },
+  skyFrame: { borderColor: theme.color.border, borderWidth: 1, borderLeftWidth: 0, borderRightWidth: 0, overflow: "hidden", position: "relative" },
+  contactInset: { maxWidth: "56%", position: "absolute", right: theme.space.small, top: theme.space.small, width: 190, zIndex: 2 },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
   legendItem: { alignItems: "center", flexDirection: "row", gap: theme.space.small },
   legendLine: { borderTopWidth: 2, width: 28 },
@@ -791,22 +994,30 @@ const styles = StyleSheet.create({
   terrainLine: { borderColor: theme.color.sky },
   horizonLine: { borderColor: "#d9ecff" },
   legendLabel: { color: theme.color.text, fontSize: 12 },
-  fieldOfViewHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  fieldOfViewValue: { color: theme.color.accent, fontSize: 18, fontWeight: "900" },
   helperText: { color: theme.color.muted, fontSize: 11, lineHeight: 16 },
   compassKey: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium },
   compassLabel: { color: theme.color.text, fontSize: 12, fontWeight: "700" },
   controlLabel: { color: theme.color.text, fontSize: 14, fontWeight: "800" },
-  playbackTrack: { flexDirection: "row", height: 8, overflow: "hidden" },
+  timelineStack: { height: 68, position: "relative" },
+  timelineContextLabels: { flexDirection: "row", justifyContent: "space-between", left: 0, position: "absolute", right: 0, top: 0 },
+  timelineContextLabel: { color: theme.color.muted, fontSize: 9 },
+  playbackTrack: { flexDirection: "row", height: 8, left: 0, overflow: "hidden", position: "absolute", right: 0, top: 38 },
   playbackTrackSegment: { minWidth: 1 },
-  playbackLabels: { flexDirection: "row", justifyContent: "space-between" },
-  playbackLabel: { color: theme.color.muted, flex: 1, fontSize: 10 },
-  playbackLabelLeft: { textAlign: "left" },
-  playbackLabelCenter: { textAlign: "center" },
-  playbackLabelRight: { textAlign: "right" },
-  timeBounds: { flexDirection: "row", justifyContent: "space-between" },
-  timeBound: { color: theme.color.muted, fontSize: 11, fontVariant: ["tabular-nums"] },
-  controls: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.small },
+  timelineSliderHitArea: { left: 0, position: "absolute", right: 0, top: 18 },
+  timelinePin: { alignItems: "center", marginLeft: -7, position: "absolute", top: 21, width: 14, zIndex: 3 },
+  timelinePinFocusIndicator: { borderColor: theme.color.sky, borderRadius: 10, borderWidth: 2, bottom: -4, left: -4, position: "absolute", right: -4, top: -4 },
+  timelinePinHead: { backgroundColor: theme.color.accent, borderColor: theme.color.background, borderRadius: 7, borderWidth: 1, height: 12, width: 12 },
+  timelinePinStem: { backgroundColor: theme.color.accent, height: 5, width: 2 },
+  contactTimelineMarker: { bottom: 0, position: "absolute", top: 0, width: 1, zIndex: 1 },
+  contactTimelineMarkerLabel: { color: theme.color.text, fontSize: 9, left: -30, position: "absolute", textAlign: "center", top: 0, width: 60 },
+  contactTimelineForkArm: { backgroundColor: theme.color.text, height: 1, opacity: 0.8, position: "absolute", top: 17 },
+  contactTimelineForkTip: { backgroundColor: theme.color.text, height: 7, opacity: 0.8, position: "absolute", top: 11, width: 2 },
+  contactTimelineMarkerLine: { backgroundColor: theme.color.text, height: 22, left: -1, opacity: 0.8, position: "absolute", top: 31, width: 2 },
+  contactTimelineMarkerLineForked: { height: 36, top: 17 },
+  timeBounds: { columnGap: theme.space.small, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: theme.space.xsmall },
+  timeBound: { color: theme.color.muted, flexShrink: 1, fontSize: 11, fontVariant: ["tabular-nums"], minWidth: 0 },
+  controlBar: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.small },
+  menuOptions: { backgroundColor: theme.color.surface, borderColor: theme.color.border, borderRadius: theme.radius.small, borderWidth: 1, flexDirection: "row", flexWrap: "wrap", gap: theme.space.small, padding: theme.space.small },
   disclaimer: { color: theme.color.muted, fontSize: 11, lineHeight: 16 },
   warning: { color: theme.color.warning, fontSize: 14 },
 });

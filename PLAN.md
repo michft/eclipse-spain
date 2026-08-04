@@ -25,7 +25,7 @@ The MVP ships with three event definitions using the same calculation pipeline:
 
 | Event | Region label | Type |
 | --- | --- | --- |
-| 12 August 2026 | Spain | Total solar eclipse |
+| 12 August 2026 | Iceland-Spain | Total solar eclipse |
 | 2 August 2027 | North Africa and the Middle East | Total solar eclipse |
 | 22 July 2028 | Sydney and Australia | Total solar eclipse |
 
@@ -72,7 +72,8 @@ The mobile-first SPA keeps event and location state shared while displaying one
 navigable page at a time:
 
 1. **Map** — event picker, rough search point, OSM map, candidate search and
-   ranked candidate markers.
+   ranked candidate markers, with the selected marker and point summary above
+   map layers.
 2. **Horizon** — elevation and animated terrain horizon with the Sun/Moon path.
 3. **Contact times** — eclipse summary, C1/C2/maximum/C3/C4, and the editable
    audio timeline.
@@ -82,6 +83,8 @@ navigable page at a time:
 
 Navigation remains visible on phone and desktop layouts. Pages do not duplicate
 or reset the selected event, location, analysis, audio markers, or share state.
+Event choices are grouped under one visible Event menu rather than permanently
+occupying a row of buttons.
 
 ## Domain contracts
 
@@ -131,6 +134,8 @@ The horizon feature is explanatory, not a verdict.
   externally tangent at C1; increasing partial overlap from C1 to C2; full
   obscuration from C2 to C3; decreasing partial overlap from C3 to C4;
   externally tangent at C4; and separate after C4.
+- Place the contact view in a corner of the horizon chart, so both views form one
+  panel and follow the same simulation time.
 - Use calculated Sun/Moon separation directly without rounding or forcing disc
   tangency at contact times.
 - Give the simulation 30 minutes of context before C1 and after C4. Draw the
@@ -141,12 +146,15 @@ The horizon feature is explanatory, not a verdict.
 - Sample terrain through 180°, show N/E/S/W bearings, and default the visible
   field of view to 45°.
 - Label exact whole-hour positions along the eclipse path in UTC as `HH:00Z`.
-- Allow a 30°–180° field of view using the visible slider, mouse wheel while the
-  chart has focus, or keyboard controls. Unfocused wheel input scrolls the page.
+- Allow a 30°–180° field of view using the visible View menu, mouse wheel while
+  the chart has focus, or keyboard controls. Unfocused wheel input scrolls the page.
 - Extend the horizon chart to both window edges while keeping its controls and
   explanatory text padded.
-- Keep play/pause, time scrubbing, contact jumps, and playback speed controls
-  visibly below the chart on phone and desktop layouts.
+- Keep one phase-coloured time scrubber below the chart. Use a non-round pin
+  whose stem touches the track, and label vertical C1, C2, Maximum, C3, and C4
+  lines on the track whenever those contacts exist. Preserve the same contacts
+  in the Jump menu. Group field-of-view, stepping, playback speed, and contact
+  jumps into compact menus while keeping play/pause immediately visible.
 - Update UTC, obscuration, azimuth, altitude, and terrain clearance as simulated
   time changes.
 - Show observer elevation, sampling source, and limitations.
@@ -228,7 +236,7 @@ App.tsx
   Vercel Function
     fixed Overpass/OSM candidate query proxy
   event data
-    2026 Spain
+    2026 Iceland-Spain
     2027 Middle East
     2028 Sydney/Australia
 ```

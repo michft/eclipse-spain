@@ -11,6 +11,8 @@ then run every check below against that exact deployment.
 
 - Confirm Map, Horizon, Contact times, Weather, Sources, and QR are separate
   selectable pages and only the selected page content is visible.
+- Confirm the header shows one Event menu; opening it exposes all three events
+  and choosing one closes the menu.
 - On a narrow phone, horizontally scroll the page navigation and reach every page.
 - Change event and location, visit every page, then return to Map; confirm the
   event, point, analysis results, audio markers, and share URL remain aligned.
@@ -43,6 +45,8 @@ then run every check below against that exact deployment.
 - Select a partial-eclipse point and confirm C2/C3 are omitted without breaking
   the audio editor.
 - Compare contact times and centre line with the linked NASA source.
+- On the Map page, confirm the selected point marker, Current Point card, and
+  eclipse-map key remain above the tiles and eclipse overlays.
 - Scrub the observer-sky timeline from 30 minutes before C1 through 30 minutes
   after C4; jump to every available contact; play at 60×, 300×, and 600×;
   confirm Sun, Moon, UTC, obscuration, azimuth, altitude, and terrain clearance
@@ -50,16 +54,24 @@ then run every check below against that exact deployment.
 - Confirm the Sun and Moon paths and playback rail are white before C1, orange
   from C1 through C4, and white after C4. Confirm the visible labels and
   solid/dotted line styles communicate the same periods and bodies without colour.
-- In the to-scale contact view, confirm the discs are separate before C1, touch
+- In the chart-corner contact inset, confirm the discs are separate before C1, touch
   externally at C1, increasingly overlap until C2, fully obscure the Sun from
   C2 through C3, decreasingly overlap until C4, touch externally at C4, and are
   separate after C4. Use the explicit **Before C1** and **After C4** jumps.
-- Confirm the time scrubber, playback controls, speed controls, and contact jumps
-  are fully visible below the chart on phone and desktop layouts.
+- Confirm there is one time scrubber shared by the chart and contact inset.
+  Confirm its handle is a pin touching the track rather than a round thumb, and
+  C1, C2, Max, C3, and C4 have labelled vertical lines for a total eclipse.
+  At a partial-eclipse point, confirm physically absent C2/C3 are not invented.
+  Confirm Play remains visible and View, Step, Speed, and Jump open one compact
+  option menu at a time on phone and desktop layouts.
+- On a narrow phone, confirm both UTC timeline endpoint labels wrap or shrink
+  within the viewport without overlapping or forcing horizontal page scrolling.
+- Open Jump and confirm C1, C2, Maximum, C3, and C4 remain available for a total
+  eclipse.
 - Confirm every altitude guide has a degree label and the visible key names the
   Sun path, Moon path, terrain skyline, and astronomical horizon.
 - Confirm the horizon opens at 45°, shows N/E/S/W bearings, reaches both window
-  edges, and adjusts from 30° through 180° using the slider.
+  edges, and adjusts from 30° through 180° using the View menu.
 - Confirm every whole hour within C1–C4 appears on the eclipse path in UTC using
   labels such as `19:00Z` and `20:00Z`.
 - When a whole hour falls within the 30-minute before/after context, confirm it

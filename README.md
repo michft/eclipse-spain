@@ -12,7 +12,7 @@ intentionally has no public product version yet.
 
 ## Supported eclipses
 
-- 12 August 2026 — Spain.
+- 12 August 2026 — Iceland-Spain.
 - 2 August 2027 — North Africa and the Middle East.
 - 22 July 2028 — Sydney and Australia.
 
@@ -38,9 +38,10 @@ All three use one calculation and UI pipeline. Event configuration lives in
 - Observer elevation and an animated observer-sky view with a sampled terrain
   silhouette, real Sun/Moon positions, cardinal bearings, adjustable 30°–180°
   field of view (45° default), whole-hour UTC path labels, time scrubbing from
-  30 minutes before C1 until 30 minutes after C4, a to-scale contact overlay,
-  white before/after and orange eclipse path/playback periods, contact jumps,
-  and 60×/300×/600× playback.
+  30 minutes before C1 until 30 minutes after C4, a corner contact inset sharing
+  the same pin timeline, white before/after and orange eclipse periods, vertical
+  C1/C2/Max/C3/C4 markers, and compact View, Step, Speed, and Jump
+  menus.
 - Cloud forecast with explicit out-of-range and failure states.
 - Editable, removable, persistent audio markers anchored to eclipse contacts.
 - Marker offsets in seconds or signed `m:ss`, with speech or tone flags.

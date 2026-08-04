@@ -5,32 +5,52 @@ import { theme } from "../styles/theme";
 
 interface TimelineSliderProps {
   accessibilityLabel?: string;
+  accessibilityValueText?: string;
   maximum: number;
+  hideThumb?: boolean;
   minimum: number;
   onChange: (value: number) => void;
+  onFocusChange?: (focused: boolean) => void;
   step?: number;
+  transparentTrack?: boolean;
   value: number;
 }
 
 export const TimelineSlider = ({
   accessibilityLabel = "Simulation time",
+  accessibilityValueText,
+  hideThumb = false,
   maximum,
   minimum,
   onChange,
+  onFocusChange,
   step = 1000,
+  transparentTrack = false,
   value,
 }: TimelineSliderProps) => (
   <Slider
     accessibilityLabel={accessibilityLabel}
-    maximumTrackTintColor={theme.color.border}
+    {...(accessibilityValueText !== undefined
+      ? { accessibilityValue: { text: accessibilityValueText } }
+      : {})}
+    maximumTrackTintColor={transparentTrack ? "transparent" : theme.color.border}
     maximumValue={maximum}
-    minimumTrackTintColor={theme.color.accent}
+    minimumTrackTintColor={transparentTrack ? "transparent" : theme.color.accent}
     minimumValue={minimum}
+    onBlur={() => onFocusChange?.(false)}
+    onFocus={() => onFocusChange?.(true)}
     onValueChange={onChange}
     step={step}
     style={styles.slider}
-    thumbTintColor={theme.color.accent}
+    thumbTintColor={hideThumb ? "transparent" : theme.color.accent}
     value={value}
+    {...(hideThumb
+      ? {
+          thumbImage: {
+            uri: "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=",
+          },
+        }
+      : {})}
   />
 );
 

@@ -39,7 +39,7 @@ export const ECLIPSE_EVENTS: readonly EclipseEventDefinition[] = [
   {
     id: "spain-2026",
     name: "12 August 2026 total solar eclipse",
-    region: "Spain",
+    region: "Iceland-Spain",
     eventDateUtc: "2026-08-12",
     searchStartUtc: "2026-08-12T00:00:00.000Z",
     mapCenter: { latitude: 42.5, longitude: -4.3 },
