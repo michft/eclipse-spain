@@ -6,6 +6,7 @@ import {
   calculateObserverSky,
   calculateSolarObscuration,
 } from "./eclipse";
+import { eclipseDiscGeometry } from "./eclipseOverlay";
 
 const centralLocations = [
   {
@@ -152,5 +153,77 @@ describe("local eclipse calculations", () => {
     expect(
       Math.abs((sky?.sun.azimuthDegrees ?? 0) - (sky?.moon.azimuthDegrees ?? 0)),
     ).toBeLessThan(1);
+  });
+
+  it("preserves physical contact phases around C1 through C4", () => {
+    const location = { latitude: 41.8167, longitude: -3.185 };
+    const eclipse = calculateLocalEclipse(
+      getEclipseEvent("spain-2026"),
+      location,
+    );
+    expect(eclipse.status).toBe("success");
+    if (eclipse.status !== "success") return;
+    const { c1, c2, c3, c4 } = eclipse.value.contacts;
+    if (!c1 || !c2 || !c3 || !c4) {
+      throw new Error("Expected total-eclipse contacts.");
+    }
+    const obscurationAt = (milliseconds: number): number =>
+      calculateObserverSky(location, new Date(milliseconds))?.obscuration ?? -1;
+    const c1Time = Date.parse(c1.utc);
+    const c2Time = Date.parse(c2.utc);
+    const c3Time = Date.parse(c3.utc);
+    const c4Time = Date.parse(c4.utc);
+
+    expect(obscurationAt(c1Time - 1_000)).toBe(0);
+    expect(obscurationAt(c1Time)).toBeCloseTo(0, 6);
+    expect(obscurationAt((c1Time + c2Time) / 2)).toBeGreaterThan(0);
+    expect(obscurationAt((c1Time + c2Time) / 2)).toBeLessThan(1);
+    expect(obscurationAt(c2Time)).toBeCloseTo(1, 6);
+    expect(obscurationAt((c2Time + c3Time) / 2)).toBeCloseTo(1, 6);
+    expect(obscurationAt(c3Time)).toBeCloseTo(1, 6);
+    expect(obscurationAt((c3Time + c4Time) / 2)).toBeGreaterThan(0);
+    expect(obscurationAt((c3Time + c4Time) / 2)).toBeLessThan(1);
+    expect(obscurationAt(c4Time)).toBeCloseTo(0, 6);
+    expect(obscurationAt(c4Time + 1_000)).toBe(0);
+  });
+
+  it("calculates contact tangencies without display geometry overrides", () => {
+    const location = { latitude: 41.8167, longitude: -3.185 };
+    const eclipse = calculateLocalEclipse(
+      getEclipseEvent("spain-2026"),
+      location,
+    );
+    expect(eclipse.status).toBe("success");
+    if (eclipse.status !== "success") return;
+    const { c1, c2, c3, c4 } = eclipse.value.contacts;
+    if (!c1 || !c2 || !c3 || !c4) {
+      throw new Error("Expected total-eclipse contacts.");
+    }
+
+    const geometryAt = (utc: string) => {
+      const sky = calculateObserverSky(location, new Date(utc));
+      if (!sky) throw new Error("Expected observer sky at contact.");
+      return eclipseDiscGeometry(sky);
+    };
+    for (const contact of [c1, c4]) {
+      const geometry = geometryAt(contact.utc);
+      expect(
+        Math.abs(
+          geometry.separationDegrees -
+            (geometry.sunRadiusDegrees + geometry.moonRadiusDegrees),
+        ),
+      ).toBeLessThan(0.001);
+    }
+    for (const contact of [c2, c3]) {
+      const geometry = geometryAt(contact.utc);
+      expect(
+        Math.abs(
+          geometry.separationDegrees -
+            Math.abs(
+              geometry.moonRadiusDegrees - geometry.sunRadiusDegrees,
+            ),
+        ),
+      ).toBeLessThan(0.001);
+    }
   });
 });

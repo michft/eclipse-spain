@@ -37,8 +37,10 @@ All three use one calculation and UI pipeline. Event configuration lives in
   Sun azimuth, and distance to a NASA-derived centre line.
 - Observer elevation and an animated observer-sky view with a sampled terrain
   silhouette, real Sun/Moon positions, cardinal bearings, adjustable 30°–180°
-  field of view (45° default), whole-hour UTC path labels, C1–C4 time scrubbing,
-  contact jumps, and 60×/300×/600× playback.
+  field of view (45° default), whole-hour UTC path labels, time scrubbing from
+  30 minutes before C1 until 30 minutes after C4, a to-scale contact overlay,
+  white before/after and orange eclipse path/playback periods, contact jumps,
+  and 60×/300×/600× playback.
 - Cloud forecast with explicit out-of-range and failure states.
 - Editable, removable, persistent audio markers anchored to eclipse contacts.
 - Marker offsets in seconds or signed `m:ss`, with speech or tone flags.

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ContactRecord } from "../domain/audioTimeline";
 import type { ElevationProfileResult } from "../services/openMeteo";
+import { theme } from "../styles/theme";
 
 const mocks = vi.hoisted(() => ({
   sliderProps: [] as Record<string, unknown>[],
@@ -22,6 +23,7 @@ vi.mock("react-native-svg", () => ({
   default: "Svg",
   Circle: "Circle",
   Defs: "Defs",
+  Ellipse: "Ellipse",
   G: "G",
   LinearGradient: "LinearGradient",
   Line: "Line",
@@ -36,7 +38,7 @@ vi.mock("../domain/eclipse", () => ({
   CONTACT_IDS: ["c1", "c2", "maximum", "c3", "c4"],
   calculateObserverSky: (_location: unknown, date: Date) => ({
     utc: date.toISOString(),
-    obscuration: 0.5,
+    obscuration: 1,
     sun: {
       altitudeDegrees: 80,
       azimuthDegrees: 180,
@@ -138,6 +140,7 @@ describe("HorizonSimulator", () => {
         createElement(HorizonSimulator, {
           contacts,
           elevation,
+          kind: "total",
           location: { latitude: 43.3717, longitude: -6.1883 },
         }),
       );
@@ -154,10 +157,17 @@ describe("HorizonSimulator", () => {
         "Moon path",
         "Terrain skyline",
         "Astronomical horizon (0° altitude)",
+        "Eclipse contact",
+        "Totality · Sun fully obscured",
+        "To-scale angular view · glow is decorative",
         "Field of view",
         "Simulation time",
         "Playback controls",
         "Jump to eclipse contact",
+        "Before C1",
+        "After C4",
+        "Outside eclipse · white",
+        "C1–C4 eclipse · orange",
       ]),
     );
 
@@ -179,9 +189,11 @@ describe("HorizonSimulator", () => {
         "40°",
         "60°",
         "80°",
+        "17:00Z",
         "18:00Z",
         "19:00Z",
         "20:00Z",
+        "21:00Z",
       ]),
     );
 
@@ -199,5 +211,43 @@ describe("HorizonSimulator", () => {
     expect(
       renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
     ).toContain("180°");
+
+    const simulationSlider = mocks.sliderProps.find(
+      (props) => props.accessibilityLabel === "Horizon simulation time",
+    );
+    expect(simulationSlider).toEqual(
+      expect.objectContaining({
+        minimum: Date.parse(contacts.c1!.utc) - 30 * 60_000,
+        maximum: Date.parse(contacts.c4!.utc) + 30 * 60_000,
+      }),
+    );
+
+    expect(visibleText).toEqual(
+      expect.arrayContaining([
+        "17:00:00 UTC · 30 min before C1",
+        "21:00:00 UTC · 30 min after C4",
+      ]),
+    );
+
+    const pathLines = renderer?.root.findAll(
+      (node) => typeof node.props.accessibilityLabel === "string" &&
+        node.props.accessibilityLabel.endsWith("path"),
+    );
+    expect(pathLines?.map((node) => node.props.accessibilityLabel)).toEqual(
+      expect.arrayContaining([
+        "Sun before C1 path",
+        "Sun C1 to C4 eclipse path",
+        "Sun after C4 path",
+        "Moon before C1 path",
+        "Moon C1 to C4 eclipse path",
+        "Moon after C4 path",
+      ]),
+    );
+    expect(
+      pathLines?.filter((node) => node.props.stroke === theme.color.text),
+    ).toHaveLength(4);
+    expect(
+      pathLines?.filter((node) => node.props.stroke === theme.color.accentStrong),
+    ).toHaveLength(2);
   });
 });

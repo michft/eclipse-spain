@@ -453,6 +453,7 @@ export default function App() {
                     <HorizonSimulator
                       contacts={eclipse.contacts}
                       elevation={elevation}
+                      kind={eclipse.kind}
                       location={location}
                     />
                   </View>

@@ -43,9 +43,17 @@ then run every check below against that exact deployment.
 - Select a partial-eclipse point and confirm C2/C3 are omitted without breaking
   the audio editor.
 - Compare contact times and centre line with the linked NASA source.
-- Scrub the observer-sky timeline from C1 to C4; jump to every available contact;
-  play at 60×, 300×, and 600×; confirm Sun, Moon, UTC, obscuration, azimuth,
-  altitude, and terrain clearance update over the terrain silhouette.
+- Scrub the observer-sky timeline from 30 minutes before C1 through 30 minutes
+  after C4; jump to every available contact; play at 60×, 300×, and 600×;
+  confirm Sun, Moon, UTC, obscuration, azimuth, altitude, and terrain clearance
+  update over the terrain silhouette.
+- Confirm the Sun and Moon paths and playback rail are white before C1, orange
+  from C1 through C4, and white after C4. Confirm the visible labels and
+  solid/dotted line styles communicate the same periods and bodies without colour.
+- In the to-scale contact view, confirm the discs are separate before C1, touch
+  externally at C1, increasingly overlap until C2, fully obscure the Sun from
+  C2 through C3, decreasingly overlap until C4, touch externally at C4, and are
+  separate after C4. Use the explicit **Before C1** and **After C4** jumps.
 - Confirm the time scrubber, playback controls, speed controls, and contact jumps
   are fully visible below the chart on phone and desktop layouts.
 - Confirm every altitude guide has a degree label and the visible key names the
@@ -54,6 +62,8 @@ then run every check below against that exact deployment.
   edges, and adjusts from 30° through 180° using the slider.
 - Confirm every whole hour within C1–C4 appears on the eclipse path in UTC using
   labels such as `19:00Z` and `20:00Z`.
+- When a whole hour falls within the 30-minute before/after context, confirm it
+  is also labelled and uses the white outside-eclipse styling.
 - On web, scroll over the unfocused chart and confirm only the page moves. Focus
   the chart, scroll again, and confirm only the field of view changes. Confirm
   keyboard arrows change field of view without changing simulation time.

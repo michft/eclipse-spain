@@ -125,7 +125,17 @@ The horizon feature is explanatory, not a verdict.
 - Sample elevations across the azimuth range traversed by the eclipse and derive
   the highest terrain angle for each sampled direction.
 - Render an observer-facing sky view with the terrain silhouette, true Sun and
-  Moon positions, and their path between C1 and C4.
+  Moon positions, and their path from 30 minutes before C1 until 30 minutes
+  after C4.
+- Render a magnified, to-scale Sun/Moon contact view: separate before C1;
+  externally tangent at C1; increasing partial overlap from C1 to C2; full
+  obscuration from C2 to C3; decreasing partial overlap from C3 to C4;
+  externally tangent at C4; and separate after C4.
+- Use calculated Sun/Moon separation directly without rounding or forcing disc
+  tangency at contact times.
+- Give the simulation 30 minutes of context before C1 and after C4. Draw the
+  before/after path and playback periods in white and C1–C4 in orange, with
+  text and line styles so meaning does not depend on colour alone.
 - Label the Sun path, Moon path, terrain skyline, astronomical horizon, and
   altitude guides without relying on colour alone.
 - Sample terrain through 180°, show N/E/S/W bearings, and default the visible
