@@ -38,6 +38,7 @@ interface HorizonSimulatorProps {
   elevation: ElevationProfileResult;
   kind: LocalEclipseCircumstances["kind"];
   location: GeoPoint;
+  showTechnicalDetails?: boolean;
 }
 
 interface MenuOption {
@@ -153,6 +154,7 @@ export const HorizonSimulator = ({
   elevation,
   kind,
   location,
+  showTechnicalDetails = false,
 }: HorizonSimulatorProps) => {
   const startMilliseconds = Date.parse(contacts.c1?.utc ?? "");
   const endMilliseconds = Date.parse(contacts.c4?.utc ?? "");
@@ -177,6 +179,7 @@ export const HorizonSimulator = ({
   );
   const [chartWidth, setChartWidth] = useState(WIDTH);
   const [timelineFocused, setTimelineFocused] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     setPlaying(false);
@@ -498,42 +501,54 @@ export const HorizonSimulator = ({
           </Text>
         </View>
       </View>
-      <View accessibilityLabel="Chart line labels" style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.sunPathLine]} />
-          <Text style={styles.legendLabel}>Sun path</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.moonPathLine]} />
-          <Text style={styles.legendLabel}>Moon path</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.outsidePathLine]} />
-          <Text style={styles.legendLabel}>Outside eclipse · white</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.eclipsePathLine]} />
-          <Text style={styles.legendLabel}>C1–C4 eclipse · orange</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.terrainLine]} />
-          <Text style={styles.legendLabel}>Terrain skyline</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendLine, styles.horizonLine]} />
-          <Text style={styles.legendLabel}>Astronomical horizon (0° altitude)</Text>
-        </View>
-      </View>
-      <Text style={styles.helperText}>
-        Use the View menu, or focus the chart then scroll, to zoom from 30° to 180°.
-      </Text>
-      <View accessibilityLabel="Cardinal bearings" style={styles.compassKey}>
-        {CARDINAL_POINTS.map((cardinal) => (
-          <Text key={cardinal.label} style={styles.compassLabel}>
-            {cardinal.label} {cardinal.bearing}°
+      <ActionButton
+        accessibilityState={{ expanded: showGuide }}
+        onPress={() => setShowGuide((visible) => !visible)}
+        secondary
+        style={styles.detailsToggle}
+      >
+        Guide · {showGuide ? "Hide" : "Show"}
+      </ActionButton>
+      {showGuide ? (
+        <>
+          <View accessibilityLabel="Chart line labels" style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.sunPathLine]} />
+              <Text style={styles.legendLabel}>Sun path</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.moonPathLine]} />
+              <Text style={styles.legendLabel}>Moon path</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.outsidePathLine]} />
+              <Text style={styles.legendLabel}>Outside eclipse · white</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.eclipsePathLine]} />
+              <Text style={styles.legendLabel}>C1–C4 eclipse · orange</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.terrainLine]} />
+              <Text style={styles.legendLabel}>Terrain skyline</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, styles.horizonLine]} />
+              <Text style={styles.legendLabel}>Astronomical horizon (0° altitude)</Text>
+            </View>
+          </View>
+          <Text style={styles.helperText}>
+            Use the View menu, or focus the chart then scroll, to zoom from 30° to 180°.
           </Text>
-        ))}
-      </View>
+          <View accessibilityLabel="Cardinal bearings" style={styles.compassKey}>
+            {CARDINAL_POINTS.map((cardinal) => (
+              <Text key={cardinal.label} style={styles.compassLabel}>
+                {cardinal.label} {cardinal.bearing}°
+              </Text>
+            ))}
+          </View>
+        </>
+      ) : null}
       <View style={styles.chartBleed}>
         <HorizonZoomSurface
           onZoomBy={(degrees) => changeFieldOfView(fieldOfViewDegrees + degrees)}
@@ -964,11 +979,13 @@ export const HorizonSimulator = ({
           ]}
         />
       ) : null}
-      <Text style={styles.disclaimer}>
-        Terrain uses a 90 m DEM sampled across a 180° view. Sun and Moon positions
-        are calculated for the selected UTC. The contact view is to angular scale;
-        trees, buildings, haze, cloud, and temporary obstructions are not modelled.
-      </Text>
+      {showTechnicalDetails ? (
+        <Text style={styles.disclaimer}>
+          Terrain uses a 90 m DEM sampled across a 180° view. Sun and Moon positions
+          are calculated for the selected UTC. The contact view is to angular scale;
+          trees, buildings, haze, cloud, and temporary obstructions are not modelled.
+        </Text>
+      ) : null}
     </View>
   );
 };
@@ -981,6 +998,7 @@ const styles = StyleSheet.create({
   rightMetrics: { alignItems: "flex-end", gap: theme.space.xsmall },
   metricText: { color: theme.color.text, fontSize: 13, fontVariant: ["tabular-nums"] },
   blocked: { color: theme.color.warning },
+  detailsToggle: { alignSelf: "flex-start" },
   chartBleed: { marginHorizontal: -theme.space.medium },
   skyFrame: { borderColor: theme.color.border, borderWidth: 1, borderLeftWidth: 0, borderRightWidth: 0, overflow: "hidden", position: "relative" },
   contactInset: { maxWidth: "56%", position: "absolute", right: theme.space.small, top: theme.space.small, width: 190, zIndex: 2 },

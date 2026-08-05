@@ -2,7 +2,6 @@ import { StatusBar } from "expo-status-bar";
 import { type ReactNode, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Linking,
   SafeAreaView,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SvgXml } from "react-native-svg";
 
 import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
@@ -188,6 +188,8 @@ export default function App() {
   const [copyState, setCopyState] = useState("Copy link");
   const [activePage, setActivePage] = useState<AppPage>("home");
   const [eventMenuOpen, setEventMenuOpen] = useState(false);
+  const [mapKeyVisible, setMapKeyVisible] = useState(false);
+  const [horizonTechnicalVisible, setHorizonTechnicalVisible] = useState(false);
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
     location,
@@ -346,7 +348,12 @@ export default function App() {
       {/* One selected page; event and location state remain shared. */}
       <View style={styles.contentArea}>
         {activePage === "home" ? (
-          <View key="map-view" style={styles.contentWrapper}>
+          <ScrollView
+            contentContainerStyle={styles.mapPageContent}
+            key="map-view"
+            keyboardShouldPersistTaps="handled"
+            style={styles.mapPage}
+          >
             {/* Map View */}
             <View style={styles.mapContainer}>
               <MapPanel
@@ -364,14 +371,26 @@ export default function App() {
                 path={selectedEvent.path}
               />
 
-              <View pointerEvents="none" style={styles.mapLegend}>
-                <Text style={styles.mapLegendTitle}>Eclipse map</Text>
-                <Text style={styles.mapLegendText}>Amber area · 100% totality</Text>
-                <Text style={styles.mapLegendText}>Gold line · centre line</Text>
-                <Text style={styles.mapLegendText}>White lines · totality limits</Text>
-                <Text style={styles.mapLegendText}>Blue lines · partial obscuration</Text>
-                <Text style={styles.mapLegendText}>Green lines · maximum time UTC</Text>
+              <View style={styles.mapKeyToggle}>
+                <ActionButton
+                  accessibilityState={{ expanded: mapKeyVisible }}
+                  onPress={() => setMapKeyVisible((visible) => !visible)}
+                  secondary
+                  style={styles.overlayToggle}
+                >
+                  Map key · {mapKeyVisible ? "Hide" : "Show"}
+                </ActionButton>
               </View>
+              {mapKeyVisible ? (
+                <View pointerEvents="none" style={styles.mapLegend}>
+                  <Text style={styles.mapLegendTitle}>Eclipse map</Text>
+                  <Text style={styles.mapLegendText}>Amber area · 100% totality</Text>
+                  <Text style={styles.mapLegendText}>Gold line · centre line</Text>
+                  <Text style={styles.mapLegendText}>White lines · totality limits</Text>
+                  <Text style={styles.mapLegendText}>Blue lines · partial obscuration</Text>
+                  <Text style={styles.mapLegendText}>Green lines · maximum time UTC</Text>
+                </View>
+              ) : null}
 
               {/* Floating Info Card */}
               <View style={styles.floatingCard}>
@@ -448,7 +467,7 @@ export default function App() {
                 📍
               </ActionButton>
             </View>
-          </View>
+          </ScrollView>
         ) : null}
 
         {activePage === "horizon" ? (
@@ -470,25 +489,38 @@ export default function App() {
                       elevation={elevation}
                       kind={eclipse.kind}
                       location={location}
+                      showTechnicalDetails={horizonTechnicalVisible}
                     />
                   </View>
                 </View>
 
                 {/* Location & Elevation Metrics */}
-                <View style={styles.metricsGrid}>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.horizonMetricLabel}>Observer elevation</Text>
-                    <Text style={styles.metricValueLarge}>
-                      {Math.round(elevation.observerElevationMeters)} m
-                    </Text>
+                <ActionButton
+                  accessibilityState={{ expanded: horizonTechnicalVisible }}
+                  onPress={() =>
+                    setHorizonTechnicalVisible((visible) => !visible)
+                  }
+                  secondary
+                  style={styles.detailsToggle}
+                >
+                  Technical details · {horizonTechnicalVisible ? "Hide" : "Show"}
+                </ActionButton>
+                {horizonTechnicalVisible ? (
+                  <View style={styles.metricsGrid}>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.horizonMetricLabel}>Observer elevation</Text>
+                      <Text style={styles.metricValueLarge}>
+                        {Math.round(elevation.observerElevationMeters)} m
+                      </Text>
+                    </View>
+                    <View style={styles.metricBox}>
+                      <Text style={styles.horizonMetricLabel}>Terrain FOV</Text>
+                      <Text style={styles.metricValueLarge}>
+                        {elevation.skyline.fieldOfViewDegrees.toFixed(0)}°
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.horizonMetricLabel}>Terrain FOV</Text>
-                    <Text style={styles.metricValueLarge}>
-                      {elevation.skyline.fieldOfViewDegrees.toFixed(0)}°
-                    </Text>
-                  </View>
-                </View>
+                ) : null}
               </>
             ) : null}
           </PageView>
@@ -614,11 +646,13 @@ export default function App() {
             <View style={styles.shareSection}>
               <View style={styles.shareBlock}>
                 {qrCode ? (
-                  <Image
+                  <View
                     accessibilityLabel="QR code"
-                    source={{ uri: qrCode }}
+                    accessibilityRole="image"
                     style={styles.qrCode}
-                  />
+                  >
+                    <SvgXml height="100%" width="100%" xml={qrCode} />
+                  </View>
                 ) : qrError ? (
                   <Text style={styles.warning}>{qrError}</Text>
                 ) : (
@@ -670,8 +704,13 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
   },
-  contentWrapper: {
+  mapPage: {
+    backgroundColor: theme.color.background,
     flex: 1,
+  },
+  mapPageContent: {
+    flexGrow: 1,
+    paddingBottom: theme.space.medium,
   },
   header: {
     backgroundColor: theme.color.surfaceRaised,
@@ -772,6 +811,17 @@ const styles = StyleSheet.create({
     top: 60,
     zIndex: 1100,
   },
+  mapKeyToggle: {
+    position: "absolute",
+    right: theme.space.small,
+    top: theme.space.small,
+    zIndex: 1100,
+  },
+  overlayToggle: {
+    minHeight: 36,
+    paddingHorizontal: theme.space.small,
+    paddingVertical: theme.space.xsmall,
+  },
   mapLegendTitle: {
     color: theme.color.text,
     fontSize: 12,
@@ -849,6 +899,10 @@ const styles = StyleSheet.create({
   },
   simulatorSection: {
     marginBottom: theme.space.large,
+  },
+  detailsToggle: {
+    alignSelf: "flex-start",
+    marginBottom: theme.space.medium,
   },
   subSectionLabel: {
     color: theme.color.muted,

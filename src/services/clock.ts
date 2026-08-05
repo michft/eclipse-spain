@@ -11,6 +11,26 @@ const UNVERIFIED_CLOCK_REASON =
   "Device time could not be verified against network time. Check it before relying on audio cues.";
 const CLOCK_CHECK_TIMEOUT_MILLISECONDS =
   DEFAULT_RATE_LIMIT_BACKOFF_BUDGET_MILLISECONDS + 6_000;
+const DEFAULT_NETWORK_TIME_URL = "https://eclipse-spain-ten.vercel.app/";
+
+const configuredNetworkTimeUrl = (): string | null => {
+  const value =
+    process.env.EXPO_PUBLIC_NETWORK_TIME_URL?.trim() ||
+    DEFAULT_NETWORK_TIME_URL;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const defaultClockUrl = (): string | null =>
+  typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : configuredNetworkTimeUrl();
 
 export type ClockTrustResult =
   | { status: "trusted"; differenceMilliseconds: number }
@@ -19,8 +39,11 @@ export type ClockTrustResult =
 export const checkDeviceClock = async (
   fetchFunction: FetchFunction = fetch,
   now: () => number = Date.now,
-  url: string = typeof window === "undefined" ? "/" : window.location.origin,
+  url: string | null = defaultClockUrl(),
 ): Promise<ClockTrustResult> => {
+  if (!url) {
+    return { status: "warning", reason: UNVERIFIED_CLOCK_REASON };
+  }
   let startedUtcMilliseconds = 0;
   const timeout = createRequestTimeout(CLOCK_CHECK_TIMEOUT_MILLISECONDS);
   try {
