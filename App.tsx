@@ -163,11 +163,10 @@ const ContactRow = ({ contact }: { contact: EclipseContact | null }) => {
 };
 
 /**
- * Renders the eclipse event and location planning screen with immersive map explorer.
+ * Renders the eclipse observation planning application.
  *
- * Full-screen map canvas with floating location info overlay and swipeable horizon
- * panel. Mobile-first design with interactive map, horizon simulator, and quick access
- * to eclipse analysis, weather, audio timeline, and sharing.
+ * Provides event and location selection, map exploration, horizon simulation,
+ * contact times, weather information, source links, and QR-code sharing.
  */
 export default function App() {
   const [initialSelection] = useState(() => readSharedSelection());
