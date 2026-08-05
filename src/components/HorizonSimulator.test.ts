@@ -147,6 +147,51 @@ describe("HorizonSimulator", () => {
       );
     });
 
+    const button = (label: string) =>
+      renderer?.root
+        .findAllByType(ActionButton)
+        .find((node) =>
+          node.findAllByType(Text).some((textNode) =>
+            textNode.children.join("") === label,
+          ),
+        );
+    expect(button("Guide · Show")?.props.accessibilityState).toEqual({
+      expanded: false,
+    });
+    const renderedText = () =>
+      renderer?.root
+        .findAllByType(Text)
+        .map((node) => node.children.join("")) ?? [];
+    expect(renderedText()).not.toContain("Sun path");
+    expect(
+      renderedText().some((value) =>
+        value.includes("Terrain uses a 90 m DEM sampled across a 180° view."),
+      ),
+    ).toBe(false);
+
+    await act(async () => button("Guide · Show")?.props.onPress());
+    expect(button("Guide · Hide")?.props.accessibilityState).toEqual({
+      expanded: true,
+    });
+    expect(renderedText()).toContain("Sun path");
+
+    await act(async () => {
+      renderer?.update(
+        createElement(HorizonSimulator, {
+          contacts,
+          elevation,
+          kind: "total",
+          location: { latitude: 43.3717, longitude: -6.1883 },
+          showTechnicalDetails: true,
+        }),
+      );
+    });
+    expect(
+      renderedText().some((value) =>
+        value.includes("Terrain uses a 90 m DEM sampled across a 180° view."),
+      ),
+    ).toBe(true);
+
     const text = renderer?.root
       .findAllByType(Text)
       .flatMap((node) => node.children)
@@ -212,8 +257,8 @@ describe("HorizonSimulator", () => {
       ]),
     );
 
-    expect(mocks.sliderProps).toHaveLength(1);
-    expect(mocks.sliderProps[0]).toEqual(
+    expect(mocks.sliderProps.length).toBeGreaterThan(0);
+    expect(mocks.sliderProps.at(-1)).toEqual(
       expect.objectContaining({
         accessibilityLabel: "Horizon simulation time",
         accessibilityValueText: "18:26:00 UTC",
@@ -244,7 +289,7 @@ describe("HorizonSimulator", () => {
         (node) => node.props.accessibilityLabel === "Simulation time pin",
       ),
     ).toHaveLength(1);
-    const onTimelineFocusChange = mocks.sliderProps[0]?.onFocusChange;
+    const onTimelineFocusChange = mocks.sliderProps.at(-1)?.onFocusChange;
     if (typeof onTimelineFocusChange !== "function") {
       throw new Error("Timeline focus state was not connected to the visible pin.");
     }
@@ -293,14 +338,6 @@ describe("HorizonSimulator", () => {
       "C4 timeline marker",
     ]);
 
-    const button = (label: string) =>
-      renderer?.root
-        .findAllByType(ActionButton)
-        .find((node) =>
-          node.findAllByType(Text).some((textNode) =>
-            textNode.children.join("") === label,
-          ),
-        );
     expect(button("180°")).toBeUndefined();
     await act(async () => button("View · 45° ▾")?.props.onPress());
     expect(button("180°")).toBeDefined();

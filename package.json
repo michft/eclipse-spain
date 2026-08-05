@@ -4,12 +4,14 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
+    "android": "expo start --android",
     "generate:map-overlays": "node scripts/generateEclipseContours.mjs",
     "start": "expo start",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "ios": "expo start --ios",
     "build:web": "expo export -p web",
     "validate": "pnpm typecheck && pnpm test && pnpm build:web && git diff --check"
   },
@@ -18,6 +20,8 @@
     "@react-native-community/slider": "5.2.0",
     "astronomy-engine": "^2.1.19",
     "expo": "~57.0.9",
+    "expo-clipboard": "~57.0.1",
+    "expo-location": "~57.0.7",
     "expo-status-bar": "~57.0.1",
     "leaflet": "^1.9.4",
     "qrcode": "^1.5.4",
@@ -25,6 +29,7 @@
     "react-dom": "19.2.3",
     "react-leaflet": "^5.0.0",
     "react-native": "0.86.2",
+    "react-native-maps": "1.27.2",
     "react-native-svg": "^15.15.5",
     "react-native-web": "~0.21.0"
   },

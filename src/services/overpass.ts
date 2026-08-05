@@ -194,7 +194,9 @@ export const makeTransportRequest = (
   location: GeoPoint,
   signal: AbortSignal,
   hostname: string | null =
-    typeof window === "undefined" ? null : window.location.hostname,
+    typeof window === "undefined" || !window.location?.hostname
+      ? null
+      : window.location.hostname,
   localProxyEnabled: boolean =
     typeof process !== "undefined" &&
     process.env.EXPO_PUBLIC_TRANSPORT_PROXY === "1",

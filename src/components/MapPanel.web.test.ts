@@ -31,7 +31,7 @@ vi.mock("react-leaflet", async () => {
   };
 });
 
-import { CircleMarker, Pane, Tooltip } from "react-leaflet";
+import { CircleMarker, MapContainer, Pane, Tooltip } from "react-leaflet";
 import { MapPanel } from "./MapPanel.web";
 
 describe("MapPanel web stacking and controls", () => {
@@ -76,6 +76,7 @@ describe("MapPanel web stacking and controls", () => {
       selectedPane?.findByType(CircleMarker).props.center,
     ).toEqual([location.latitude, location.longitude]);
     expect(selectedPane?.findByType(Tooltip).props.pane).toBe("tooltipPane");
+    expect(renderer?.root.findByType(MapContainer).props.scrollWheelZoom).toBe(false);
     const extentSelect = renderer?.root.findByType("select");
     expect(extentSelect?.props.value).toBe("full");
     await act(async () => {

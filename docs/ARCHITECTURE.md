@@ -12,9 +12,10 @@ Vercel transport function
   fixed Overpass query
 ```
 
-The UI is a static browser client. A single same-origin Vercel Function validates
-rough-search coordinates, creates the fixed transport-anchor query, and forwards
-it to Overpass. There is no account system, database, or secret API key.
+The UI runs on web, iOS, and Android. The web build is a static client. A single
+same-origin Vercel Function validates rough-search coordinates, creates the
+fixed transport-anchor query, and forwards it to Overpass for deployed web
+clients. There is no account system or database.
 
 ## Boundaries
 
@@ -44,7 +45,7 @@ page state. Their core behavior is unit tested.
 
 - Open-Meteo elevation and cloud JSON;
 - same-origin transport results and Overpass/OpenStreetMap transport objects;
-- browser geolocation, clipboard, storage, QR, page visibility, speech, and tone.
+- platform geolocation, clipboard, storage, QR, app visibility, speech, and tone.
 
 Network adapters accept an injected fetch function. They parse `unknown` input
 and return typed `success`, `unavailable`, or `error` results.
@@ -79,9 +80,18 @@ C1−30 minutes through C4+30 minutes, using labelled white/orange/white periods
 `eclipsePaths.ts` stores NASA path-table rows;
 `eclipseContours.generated.ts` stores reproducible Astronomy Engine
 partial-obscuration and hourly UTC curves. Components render explicit loading,
-unavailable, failure, and success states. The Leaflet map has a `.web.tsx`
-implementation with a top-pane selected marker and overlay information, plus a
-non-web fallback even though only web deployment is supported.
+unavailable, failure, and success states. The Leaflet `.web.tsx` map and the
+`react-native-maps` iOS/Android map share one product contract: eclipse
+overlays, path/region extents, UTC markers, candidates, selected point, and
+tap-to-select behavior. Platform-specific files may use different primitives,
+but must not remove user-visible capability.
+
+## Platform parity
+
+Web, iOS, and Android are supported targets. Every user-visible change must be
+checked against all three. Shared React Native components are preferred;
+platform-specific implementations require paired tests and equivalent controls.
+An unverified target is reported as unverified rather than assumed equivalent.
 
 ## Sharing
 

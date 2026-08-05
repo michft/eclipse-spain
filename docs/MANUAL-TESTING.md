@@ -1,7 +1,8 @@
-# Manual browser testing
+# Manual platform testing
 
-Run these checks against a production export or Vercel preview on both a phone
-browser and a desktop browser.
+Run these checks on web, iOS, and Android. Use both a narrow phone browser and a
+desktop browser for web; use current phone simulators/devices for iOS and
+Android. Record any unavailable target rather than assuming parity.
 
 The existing `eclipse-spain-ten.vercel.app` deployment is the single-map plus
 long-horizon-panel baseline. Deploy the `complete-eclipse-map-horizon` bookmark,
@@ -27,6 +28,11 @@ then run every check below against that exact deployment.
   white north/south limits from start to end; confirm the 100% corridor is filled.
 - Switch between **Full eclipse path** and **Selected region** and confirm both
   extents remain available on narrow and desktop layouts.
+- On a short phone or landscape viewport, vertically scroll the Map page and
+  reach the coordinate fields and every map control. On desktop, wheel over the
+  map and confirm the page scrolls; use the visible `+`/`−` controls to zoom.
+- Confirm **Map key · Show/Hide** reveals and collapses the eclipse-map key, and
+  its expanded accessibility state follows the visible panel.
 - Confirm blue partial-obscuration areas/bands and green hourly maximum-time
   curves appear. Check labels use `HH:00Z` and 2026 includes `19:00Z`.
 - Tap the map to choose a rough search point and confirm coordinates, QR, and
@@ -36,7 +42,7 @@ then run every check below against that exact deployment.
 - Select a candidate and confirm eclipse, horizon, cloud, audio, and share state
   switch to its coordinates. Confirm there is no standalone transport card.
 - Enter valid negative/positive coordinates and reject out-of-range values.
-- Allow browser geolocation once; deny it once and confirm a readable error.
+- Allow device/browser geolocation once; deny it once and confirm a readable error.
 - Open a copied share URL in a private tab and confirm event and point restore.
 
 ## Eclipse and site
@@ -70,6 +76,9 @@ then run every check below against that exact deployment.
   eclipse.
 - Confirm every altitude guide has a degree label and the visible key names the
   Sun path, Moon path, terrain skyline, and astronomical horizon.
+- Confirm **Guide · Show/Hide** controls the Horizon key, zoom help, and compass
+  key. Confirm **Technical details · Show/Hide** controls the terrain disclaimer,
+  observer elevation, and terrain FOV without hiding the chart or timeline.
 - Confirm the horizon opens at 45°, shows N/E/S/W bearings, reaches both window
   edges, and adjusts from 30° through 180° using the View menu.
 - Confirm every whole hour within C1–C4 appears on the eclipse path in UTC using
@@ -104,6 +113,9 @@ then run every check below against that exact deployment.
 ## Mobile and deployment
 
 - Use narrow portrait and landscape layouts; check no control requires hover.
+- On iOS and Android, confirm the native map shows the same eclipse overlays,
+  Full path/Region choices, candidate points, selected point, and tap-to-select
+  behavior as web.
 - Verify touch targets, keyboard entry, headings, links, and QR readability.
 - Confirm OpenStreetMap attribution remains visible.
 - Scan the QR code using another phone.

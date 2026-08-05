@@ -115,7 +115,7 @@ export const MapPanel = ({
     <div style={{ height: MAP_HEIGHT, position: "relative", width: "100%" }}>
       <MapContainer
         center={[location.latitude, location.longitude]}
-        scrollWheelZoom
+        scrollWheelZoom={false}
         style={{ height: MAP_HEIGHT, width: "100%" }}
         zoom={6}
       >

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a responsive Expo TypeScript web app for choosing and using an eclipse observation location. It must be usable in phone browsers and deploy on Vercel. The browser app is a static single-page app; one narrow same-origin Vercel Function proxies fixed transport queries because the public Overpass endpoint failed CORS in the deployed browser. There are no native iOS or Android deliverables.
+Build a responsive Expo TypeScript app for choosing and using an eclipse observation location on web, iOS, and Android. It must be usable in phone browsers, run in Expo Go, and deploy on Vercel. The browser app is a static single-page app; one narrow same-origin Vercel Function proxies fixed transport queries because the public Overpass endpoint failed CORS in the deployed browser. User-visible features and controls must remain functionally equivalent across all three targets.
 
 The app combines:
 
@@ -73,8 +73,10 @@ navigable page at a time:
 
 1. **Map** — event picker, rough search point, OSM map, candidate search and
    ranked candidate markers, with the selected marker and point summary above
-   map layers.
-2. **Horizon** — elevation and animated terrain horizon with the Sun/Moon path.
+   map layers. The page scrolls vertically on short screens and keeps its map
+   key behind an explicit disclosure control.
+2. **Horizon** — elevation and animated terrain horizon with the Sun/Moon path;
+   secondary guide and technical details use explicit disclosure controls.
 3. **Contact times** — eclipse summary, C1/C2/maximum/C3/C4, and the editable
    audio timeline.
 4. **Weather** — cloud forecast or an explicit unavailable/error state.

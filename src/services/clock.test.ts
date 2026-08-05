@@ -1,9 +1,64 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { FetchFunction } from "./result";
 import { checkDeviceClock } from "./clock";
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
 describe("device clock check", () => {
+  it("preserves the warning when no clock URL is available", async () => {
+    const fetchFunction = vi.fn<FetchFunction>();
+    vi.stubGlobal("window", {});
+
+    await expect(
+      checkDeviceClock(fetchFunction, Date.now, null),
+    ).resolves.toMatchObject({ status: "warning" });
+    expect(fetchFunction).not.toHaveBeenCalled();
+  });
+
+  it("uses the configured public network-time URL on native", async () => {
+    vi.stubGlobal("window", {});
+    vi.stubEnv("EXPO_PUBLIC_NETWORK_TIME_URL", "https://time.example.test/");
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response(null, {
+        headers: { Date: "Sun, 02 Aug 2026 14:00:00 GMT" },
+      }),
+    );
+    const times = [
+      Date.parse("2026-08-02T14:00:00.000Z"),
+      Date.parse("2026-08-02T14:00:00.100Z"),
+    ];
+
+    await expect(
+      checkDeviceClock(fetchFunction, () => times.shift() ?? 0),
+    ).resolves.toMatchObject({ status: "trusted" });
+    expect(fetchFunction).toHaveBeenCalledWith(
+      "https://time.example.test/",
+      expect.objectContaining({ method: "HEAD" }),
+    );
+  });
+
+  it("warns for an unavailable native network-time response", async () => {
+    vi.stubGlobal("window", {});
+    vi.stubEnv("EXPO_PUBLIC_NETWORK_TIME_URL", "https://time.example.test/");
+    const fetchFunction = vi.fn<FetchFunction>(async () =>
+      new Response(null, { status: 503 }),
+    );
+
+    await expect(checkDeviceClock(fetchFunction)).resolves.toEqual({
+      status: "warning",
+      reason:
+        "Device time could not be verified against network time. Check it before relying on audio cues.",
+    });
+    expect(fetchFunction).toHaveBeenCalledWith(
+      "https://time.example.test/",
+      expect.objectContaining({ method: "HEAD" }),
+    );
+  });
+
   it("accepts a clock close to the response Date header", async () => {
     const fetchFunction = vi.fn<FetchFunction>(async () =>
       new Response(null, {
@@ -82,6 +137,8 @@ describe("device clock check", () => {
   it("bounds a stalled network-time request", async () => {
     vi.useFakeTimers();
     try {
+      vi.stubGlobal("window", {});
+      vi.stubEnv("EXPO_PUBLIC_NETWORK_TIME_URL", "https://time.example.test/");
       const fetchFunction = vi.fn<FetchFunction>(
         (_input, init) =>
           new Promise<Response>((_resolve, reject) => {
@@ -93,7 +150,7 @@ describe("device clock check", () => {
           }),
       );
 
-      const result = checkDeviceClock(fetchFunction, Date.now, "/");
+      const result = checkDeviceClock(fetchFunction);
       await vi.advanceTimersByTimeAsync(20_000);
 
       await expect(result).resolves.toEqual({
@@ -101,6 +158,10 @@ describe("device clock check", () => {
         reason:
           "Device time could not be verified against network time. Check it before relying on audio cues.",
       });
+      expect(fetchFunction).toHaveBeenCalledWith(
+        "https://time.example.test/",
+        expect.objectContaining({ method: "HEAD" }),
+      );
     } finally {
       vi.useRealTimers();
     }

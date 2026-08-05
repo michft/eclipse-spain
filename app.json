@@ -4,6 +4,14 @@
     "slug": "eclipse-observer",
     "orientation": "default",
     "userInterfaceStyle": "dark",
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Eclipse Observer to use your location to select an observing point."
+        }
+      ]
+    ],
     "web": {
       "bundler": "metro",
       "output": "single",

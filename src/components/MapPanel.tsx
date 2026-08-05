@@ -1,36 +1,343 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import MapView, {
+  Marker,
+  Polygon,
+  Polyline,
+  type MapPressEvent,
+} from "react-native-maps";
 
 import type { MapBounds } from "../data/eclipseEvents";
 import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
+import { MAP_HEIGHT } from "../styles/layout";
 import { theme } from "../styles/theme";
+
+type ContourPath = readonly (readonly [number, number])[];
+
+interface MapContours {
+  readonly obscurationContours: readonly {
+    readonly paths: readonly ContourPath[];
+    readonly percent: number;
+  }[];
+  readonly timeContours: readonly {
+    readonly label: string;
+    readonly paths: readonly ContourPath[];
+  }[];
+}
 
 interface MapPanelProps {
   bounds: MapBounds;
   candidates?: readonly GeoPoint[];
-  contours: {
-    readonly obscurationContours: readonly unknown[];
-    readonly timeContours: readonly unknown[];
-  };
+  contours: MapContours;
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
   path: EclipsePathGeometry;
 }
 
-export const MapPanel = (_props: MapPanelProps) => (
-  <View style={styles.unavailable}>
-    <Text style={styles.text}>The map is available in the web app.</Text>
-  </View>
-);
+const coordinates = (points: readonly GeoPoint[]): GeoPoint[] =>
+  points.map(({ latitude, longitude }) => ({ latitude, longitude }));
+
+const contourCoordinates = (path: ContourPath): GeoPoint[] =>
+  path.map(([latitude, longitude]) => ({ latitude, longitude }));
+
+const boundsCoordinates = ({ east, north, south, west }: MapBounds): GeoPoint[] => [
+  { latitude: north, longitude: west },
+  { latitude: north, longitude: east },
+  { latitude: south, longitude: east },
+  { latitude: south, longitude: west },
+];
+
+const initialRegion = ({ east, north, south, west }: MapBounds) => ({
+  latitude: (north + south) / 2,
+  latitudeDelta: Math.max(1, (north - south) * 1.15),
+  longitude: (east + west) / 2,
+  longitudeDelta: Math.max(1, (east - west) * 1.15),
+});
+
+const edgePadding = { bottom: 36, left: 28, right: 28, top: 52 };
+
+export const MapPanel = ({
+  bounds,
+  candidates = [],
+  contours,
+  location,
+  onLocationChange,
+  path,
+}: MapPanelProps) => {
+  const mapRef = useRef<MapView | null>(null);
+  const mapReady = useRef(false);
+  const previousLocation = useRef(location);
+  const [showFullPath, setShowFullPath] = useState(true);
+
+  const fitExtent = useCallback(
+    (fullPath: boolean, animated: boolean) => {
+      const nextCoordinates = fullPath
+        ? coordinates(path.totalityArea)
+        : boundsCoordinates(bounds);
+      if (nextCoordinates.length === 0) return;
+      mapRef.current?.fitToCoordinates(nextCoordinates, {
+        animated,
+        edgePadding,
+      });
+    },
+    [bounds, path.totalityArea],
+  );
+
+  useEffect(() => {
+    if (mapReady.current) fitExtent(showFullPath, true);
+  }, [fitExtent]);
+
+  useEffect(() => {
+    const changed =
+      previousLocation.current.latitude !== location.latitude ||
+      previousLocation.current.longitude !== location.longitude;
+    previousLocation.current = location;
+    if (changed && mapReady.current) {
+      mapRef.current?.animateCamera(
+        { center: location },
+        { duration: 250 },
+      );
+    }
+  }, [location]);
+
+  const selectExtent = (fullPath: boolean) => {
+    setShowFullPath(fullPath);
+    if (mapReady.current) fitExtent(fullPath, true);
+  };
+
+  const handleMapPress = ({ nativeEvent }: MapPressEvent) => {
+    onLocationChange({
+      latitude: nativeEvent.coordinate.latitude,
+      longitude: nativeEvent.coordinate.longitude,
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <MapView
+        initialRegion={initialRegion(bounds)}
+        loadingEnabled
+        moveOnMarkerPress={false}
+        onMapReady={() => {
+          mapReady.current = true;
+          fitExtent(showFullPath, false);
+        }}
+        onPress={handleMapPress}
+        pitchEnabled={false}
+        ref={mapRef}
+        rotateEnabled={false}
+        style={styles.map}
+        toolbarEnabled={false}
+      >
+        {contours.obscurationContours.map((contour, contourIndex) =>
+          contour.paths.map((contourPath, pathIndex) =>
+            contourIndex === 0 ? (
+              <Polygon
+                coordinates={contourCoordinates(contourPath)}
+                fillColor="rgba(85, 186, 244, 0.07)"
+                key={`partial-area:${pathIndex}`}
+                strokeColor="rgba(85, 186, 244, 0.65)"
+                strokeWidth={1}
+              />
+            ) : (
+              <Polyline
+                coordinates={contourCoordinates(contourPath)}
+                key={`obscuration:${contour.percent}:${pathIndex}`}
+                strokeColor="rgba(85, 186, 244, 0.72)"
+                strokeWidth={2}
+              />
+            ),
+          ),
+        )}
+        {contours.timeContours.flatMap((contour) =>
+          contour.paths.map((contourPath, pathIndex) => (
+            <Polyline
+              coordinates={contourCoordinates(contourPath)}
+              key={`time:${contour.label}:${pathIndex}`}
+              strokeColor="rgba(101, 214, 166, 0.8)"
+              strokeWidth={2}
+            />
+          )),
+        )}
+        <Polygon
+          coordinates={coordinates(path.totalityArea)}
+          fillColor="rgba(255, 201, 77, 0.24)"
+          strokeColor="rgba(255, 230, 154, 0.75)"
+          strokeWidth={1}
+        />
+        <Polyline
+          coordinates={coordinates(path.northernLimit)}
+          lineDashPattern={[5, 6]}
+          strokeColor="rgba(247, 242, 223, 0.9)"
+          strokeWidth={2}
+        />
+        <Polyline
+          coordinates={coordinates(path.southernLimit)}
+          lineDashPattern={[5, 6]}
+          strokeColor="rgba(247, 242, 223, 0.9)"
+          strokeWidth={2}
+        />
+        <Polyline
+          coordinates={coordinates(path.centerLine)}
+          strokeColor="rgba(255, 201, 77, 0.9)"
+          strokeWidth={3}
+        />
+        {path.centerLine
+          .filter((point) => point.timeUtc?.endsWith(":00Z"))
+          .map((point) => (
+            <Marker
+              anchor={{ x: 0.5, y: 1 }}
+              coordinate={point}
+              identifier={`path-time:${point.timeUtc}`}
+              key={`path-time:${point.timeUtc}`}
+              tracksViewChanges={false}
+              zIndex={10}
+            >
+              <View style={styles.timeMarker}>
+                <Text style={styles.timeMarkerText}>{point.timeUtc}</Text>
+                <View style={styles.timeMarkerDot} />
+              </View>
+            </Marker>
+          ))}
+        {candidates.map((candidate, index) => (
+          <Marker
+            anchor={{ x: 0.5, y: 0.5 }}
+            coordinate={candidate}
+            identifier={`candidate:${candidate.latitude}:${candidate.longitude}`}
+            key={`${candidate.latitude}:${candidate.longitude}`}
+            tracksViewChanges={false}
+            zIndex={15}
+          >
+            <View
+              style={[
+                styles.candidateMarker,
+                index === 0 ? styles.bestCandidateMarker : null,
+              ]}
+            />
+          </Marker>
+        ))}
+        <Marker
+          anchor={{ x: 0.5, y: 0.5 }}
+          coordinate={location}
+          identifier="selected-location"
+          tracksViewChanges={false}
+          zIndex={30}
+        >
+          <View style={styles.selectedMarker} />
+        </Marker>
+      </MapView>
+
+      <View accessibilityRole="radiogroup" style={styles.extentControl}>
+        <Pressable
+          accessibilityLabel="Show full eclipse path"
+          accessibilityRole="radio"
+          accessibilityState={{ checked: showFullPath }}
+          onPress={() => selectExtent(true)}
+          style={({ pressed }) => [
+            styles.extentOption,
+            showFullPath ? styles.extentOptionSelected : null,
+            pressed ? styles.extentOptionPressed : null,
+          ]}
+        >
+          <Text style={styles.extentOptionText}>Full path</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Show selected region"
+          accessibilityRole="radio"
+          accessibilityState={{ checked: !showFullPath }}
+          onPress={() => selectExtent(false)}
+          style={({ pressed }) => [
+            styles.extentOption,
+            !showFullPath ? styles.extentOptionSelected : null,
+            pressed ? styles.extentOptionPressed : null,
+          ]}
+        >
+          <Text style={styles.extentOptionText}>Region</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
-  unavailable: {
-    alignItems: "center",
-    backgroundColor: theme.color.background,
-    height: 280,
-    justifyContent: "center",
+  bestCandidateMarker: {
+    backgroundColor: "#d68cff",
+    height: 16,
+    width: 16,
   },
-  text: {
-    color: theme.color.muted,
+  candidateMarker: {
+    backgroundColor: "#65d6a6",
+    borderColor: theme.color.background,
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 12,
+    width: 12,
+  },
+  container: {
+    height: MAP_HEIGHT,
+    position: "relative",
+    width: "100%",
+  },
+  extentControl: {
+    backgroundColor: theme.color.surfaceRaised,
+    borderColor: theme.color.border,
+    borderRadius: 7,
+    borderWidth: 1,
+    flexDirection: "row",
+    left: theme.space.small,
+    overflow: "hidden",
+    position: "absolute",
+    top: theme.space.small,
+  },
+  extentOption: {
+    minHeight: 36,
+    paddingHorizontal: theme.space.small,
+    paddingVertical: theme.space.xsmall,
+  },
+  extentOptionPressed: {
+    opacity: 0.78,
+  },
+  extentOptionSelected: {
+    backgroundColor: theme.color.accent,
+  },
+  extentOptionText: {
+    color: theme.color.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  map: {
+    ...StyleSheet.absoluteFill,
+  },
+  selectedMarker: {
+    backgroundColor: "#7cc7ff",
+    borderColor: theme.color.background,
+    borderRadius: 999,
+    borderWidth: 3,
+    height: 20,
+    width: 20,
+  },
+  timeMarker: {
+    alignItems: "center",
+  },
+  timeMarkerDot: {
+    backgroundColor: theme.color.accent,
+    borderColor: theme.color.background,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 8,
+    width: 8,
+  },
+  timeMarkerText: {
+    backgroundColor: theme.color.surfaceRaised,
+    borderColor: theme.color.border,
+    borderRadius: 4,
+    borderWidth: 1,
+    color: theme.color.text,
+    fontSize: 10,
+    fontWeight: "700",
+    marginBottom: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
 });

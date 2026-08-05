@@ -1,6 +1,6 @@
 # Eclipse Observer
 
-Mobile-first Expo TypeScript web app for finding an eclipse observation point,
+Mobile-first Expo TypeScript app for web, iOS, and Android that finds an eclipse observation point,
 comparing transport-anchored candidates, simulating the live terrain horizon,
 and running an editable spoken countdown.
 
@@ -25,8 +25,9 @@ All three use one calculation and UI pipeline. Event configuration lives in
 
 - Persistent mobile-first navigation between Map, Horizon, Contact times,
   Weather, Sources, and QR pages while retaining the selected event and point.
-- Tappable OpenStreetMap map, coordinate entry, and browser geolocation for a
-  rough search area.
+- Tappable eclipse map, coordinate entry, and device/browser geolocation for a
+  rough search area. The map page scrolls on short screens, while secondary map
+  and Horizon guidance is available through disclosure toggles.
 - Complete NASA-derived totality limits and filled 100% corridor for every
   event, plus derived partial-obscuration bands and hourly UTC time curves.
 - Ranked observing-location candidates anchored to nearby rail, bus, airport,
@@ -57,16 +58,24 @@ Requirements: a current Node.js installation and `pnpm`.
 
 ```sh
 pnpm install
-pnpm web
+pnpm start
 ```
 
-The app is web-only. There are no iOS or Android build targets.
+Open the project in Expo Go for iOS or Android, or press `w` for the web app.
+`pnpm ios`, `pnpm android`, and `pnpm web` launch a specific target. Web uses
+Leaflet and OpenStreetMap; iOS and Android use `react-native-maps`. Map,
+Horizon, and shared navigation behavior must remain functionally equivalent on
+all three targets.
 
 Candidate finding calls Overpass directly in local development. Vercel
 deployments use `/api/transport` to avoid browser CORS failures.
 To exercise the same-origin Function locally, use
 `EXPO_PUBLIC_TRANSPORT_PROXY=1 pnpm dlx vercel dev`; the runtime signal makes the
 localhost browser call `/api/transport` while Vercel serves the Function.
+
+Native clock verification uses `https://eclipse-spain-ten.vercel.app/` by
+default. Set `EXPO_PUBLIC_NETWORK_TIME_URL` to override it with an absolute
+HTTP(S) endpoint that accepts `HEAD` and returns a `Date` header.
 
 ## Validation
 
@@ -87,7 +96,7 @@ pnpm test
 pnpm build:web
 ```
 
-See [manual browser checks](docs/MANUAL-TESTING.md) before a public deployment.
+See [manual platform checks](docs/MANUAL-TESTING.md) before a public deployment.
 
 ## Vercel
 

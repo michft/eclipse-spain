@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   fetchTransportProximity,
@@ -6,6 +6,10 @@ import {
   TRANSPORT_API_PATH,
 } from "./overpass";
 import type { FetchFunction } from "./result";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("Overpass transport adapter", () => {
   it("uses the same-origin transport API in deployed browsers", () => {
@@ -33,6 +37,18 @@ describe("Overpass transport adapter", () => {
       `${TRANSPORT_API_PATH}?latitude=43.3717&longitude=-6.1883`,
     );
     expect(request.init.method).toBeUndefined();
+  });
+
+  it("uses Overpass directly when native has no browser hostname", () => {
+    vi.stubGlobal("window", {});
+
+    const request = makeTransportRequest(
+      { latitude: 43.3717, longitude: -6.1883 },
+      new AbortController().signal,
+    );
+
+    expect(request.input).toBe("https://overpass-api.de/api/interpreter");
+    expect(request.init.method).toBe("POST");
   });
 
   it("keeps modes separate and chooses the nearest item", async () => {

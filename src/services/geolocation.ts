@@ -1,13 +1,14 @@
+import {
+  Accuracy,
+  getCurrentPositionAsync,
+  requestForegroundPermissionsAsync,
+} from "expo-location";
+
 import type { GeoPoint } from "../domain/geo";
 import type { ServiceResult } from "./result";
 
-export const getCurrentLocation = (): Promise<ServiceResult<GeoPoint>> =>
+const getBrowserLocation = (): Promise<ServiceResult<GeoPoint>> =>
   new Promise((resolve) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      resolve({ status: "unavailable", reason: "Location is not available here." });
-      return;
-    }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
@@ -35,3 +36,32 @@ export const getCurrentLocation = (): Promise<ServiceResult<GeoPoint>> =>
       { enableHighAccuracy: true, maximumAge: 30_000, timeout: 15_000 },
     );
   });
+
+export const getCurrentLocation = async (): Promise<ServiceResult<GeoPoint>> => {
+  if (typeof navigator !== "undefined" && navigator.geolocation) {
+    return getBrowserLocation();
+  }
+
+  try {
+    const permission = await requestForegroundPermissionsAsync();
+    if (permission.status !== "granted") {
+      return { status: "error", reason: "Location permission was denied." };
+    }
+    const position = await getCurrentPositionAsync({ accuracy: Accuracy.High });
+    return {
+      status: "success",
+      value: {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      },
+    };
+  } catch (error: unknown) {
+    return {
+      status: "error",
+      reason:
+        error instanceof Error && error.message
+          ? error.message
+          : "Your location is currently unavailable.",
+    };
+  }
+};
