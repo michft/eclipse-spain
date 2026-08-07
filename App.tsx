@@ -15,6 +15,7 @@ import { SvgXml } from "react-native-svg";
 import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
 import { HorizonSimulator } from "./src/components/HorizonSimulator";
+import { LocationFinderPanel } from "./src/components/LocationFinderPanel";
 import { MapPanel } from "./src/components/MapPanel";
 import type { MapCamera } from "./src/components/mapViewState";
 import {
@@ -506,6 +507,11 @@ export default function App() {
                 📍
               </ActionButton>
             </View>
+            <LocationFinderPanel
+              finder={finder}
+              onFind={() => void findLocations(selectedEvent, location)}
+              onSelect={(candidate) => selectLocation(candidate.location)}
+            />
           </ScrollView>
         ) : null}
 

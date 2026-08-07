@@ -208,12 +208,23 @@ export const HorizonSimulator = ({
     if (!playing || !Number.isFinite(simulationEndMilliseconds)) {
       return;
     }
-    const timer = setInterval(() => {
+    let animationFrame: number;
+    let previousTimestamp: number | null = null;
+    const animate = (timestamp: number): void => {
+      const elapsedMilliseconds = previousTimestamp === null
+        ? 0
+        : Math.min(100, timestamp - previousTimestamp);
+      previousTimestamp = timestamp;
       setSimulatedMilliseconds((current) =>
-        Math.min(simulationEndMilliseconds, current + 100 * speed),
+        Math.min(
+          simulationEndMilliseconds,
+          current + elapsedMilliseconds * speed,
+        ),
       );
-    }, 100);
-    return () => clearInterval(timer);
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
   }, [playing, simulationEndMilliseconds, speed]);
 
   useEffect(() => {

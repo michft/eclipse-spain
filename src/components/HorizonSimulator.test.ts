@@ -146,6 +146,41 @@ describe("HorizonSimulator", () => {
     mocks.compassAvailable = false;
     mocks.compassHeading = null;
     mocks.requestHeading.mockClear();
+    vi.unstubAllGlobals();
+  });
+
+  it("animates playback continuously between frames", async () => {
+    const frames: Array<(timestamp: number) => void> = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: (timestamp: number) => void) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    await act(async () => {
+      renderer = create(
+        createElement(HorizonSimulator, {
+          contacts,
+          elevation,
+          kind: "total",
+          location: { latitude: 43.3717, longitude: -6.1883 },
+        }),
+      );
+    });
+
+    const playButton = renderer?.root.findAllByType(ActionButton).find((node) =>
+      node.findAllByType(Text).some((textNode) => textNode.children.join("") === "Play"),
+    );
+    await act(async () => playButton?.props.onPress());
+    expect(frames).toHaveLength(1);
+
+    await act(async () => frames.shift()?.(1000));
+    await act(async () => frames.shift()?.(1016));
+
+    expect(
+      renderer?.root.findAllByType(Text).map((node) => node.children.join("")),
+    ).toContain("18:26:04 UTC");
+    expect(frames).toHaveLength(1);
   });
 
   it("visibly labels chart lines and every interaction group", async () => {
