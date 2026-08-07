@@ -10,6 +10,7 @@ import {
 import { theme } from "../styles/theme";
 
 interface ActionButtonProps {
+  accessibilityLabel?: string;
   accessibilityState?: AccessibilityState;
   children: ReactNode;
   onPress: () => void;
@@ -19,6 +20,7 @@ interface ActionButtonProps {
 }
 
 export const ActionButton = ({
+  accessibilityLabel,
   accessibilityState,
   children,
   disabled = false,
@@ -27,6 +29,7 @@ export const ActionButton = ({
   style,
 }: ActionButtonProps) => (
   <Pressable
+    {...(accessibilityLabel ? { accessibilityLabel } : {})}
     accessibilityRole="button"
     {...(accessibilityState ? { accessibilityState } : {})}
     disabled={disabled}

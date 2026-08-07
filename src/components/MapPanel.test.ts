@@ -37,6 +37,7 @@ vi.mock("react-native-maps", async () => {
   );
   MapView.displayName = "MapView";
   return {
+    Callout: component("Callout"),
     default: MapView,
     Marker: component("Marker"),
     Polygon: component("Polygon"),
@@ -59,6 +60,7 @@ describe("MapPanel native parity", () => {
   it("renders eclipse overlays and supports selection and extent controls", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const onLocationChange = vi.fn();
+    const onCameraChange = vi.fn();
     const location = { latitude: 43.3717, longitude: -6.1883 };
     const totalityArea = [
       { latitude: 44, longitude: -7 },
@@ -87,6 +89,7 @@ describe("MapPanel native parity", () => {
             ],
           },
           location,
+          onCameraChange,
           onLocationChange,
           path: {
             centerLine: [
@@ -114,6 +117,20 @@ describe("MapPanel native parity", () => {
       totalityArea,
       expect.objectContaining({ animated: false }),
     );
+    await act(async () =>
+      map?.props.onRegionChangeComplete({
+        latitude: 41.25,
+        latitudeDelta: 0.4,
+        longitude: -3.5,
+        longitudeDelta: 0.6,
+      }),
+    );
+    expect(onCameraChange).toHaveBeenCalledWith({
+      center: { latitude: 41.25, longitude: -3.5 },
+      latitudeDelta: 0.4,
+      longitudeDelta: 0.6,
+      zoom: 0,
+    });
 
     await act(async () =>
       map?.props.onPress({
@@ -139,5 +156,42 @@ describe("MapPanel native parity", () => {
       ],
       expect.objectContaining({ animated: true }),
     );
+  });
+
+  it("restores a saved camera without fitting the event bounds", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const camera = {
+      center: { latitude: 41, longitude: -3 },
+      latitudeDelta: 0.4,
+      longitudeDelta: 0.6,
+      zoom: 0,
+    };
+    await act(async () => {
+      renderer = create(
+        createElement(MapPanel, {
+          bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+          contours: { obscurationContours: [], timeContours: [] },
+          initialCamera: camera,
+          location: camera.center,
+          onLocationChange: vi.fn(),
+          path: {
+            centerLine: [],
+            northernLimit: [],
+            southernLimit: [],
+            totalityArea: [{ latitude: 44, longitude: -7 }],
+          },
+        }),
+      );
+    });
+
+    const map = renderer?.root.findByType(MapView);
+    expect(map?.props.initialRegion).toEqual({
+      latitude: 41,
+      latitudeDelta: 0.4,
+      longitude: -3,
+      longitudeDelta: 0.6,
+    });
+    await act(async () => map?.props.onMapReady());
+    expect(mapMocks.fitToCoordinates).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import MapView, {
+  Callout,
   Marker,
   Polygon,
   Polyline,
@@ -10,6 +11,7 @@ import MapView, {
 import type { MapBounds } from "../data/eclipseEvents";
 import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
+import type { MapCamera } from "./mapViewState";
 import { MAP_HEIGHT } from "../styles/layout";
 import { theme } from "../styles/theme";
 
@@ -30,9 +32,12 @@ interface MapPanelProps {
   bounds: MapBounds;
   candidates?: readonly GeoPoint[];
   contours: MapContours;
+  initialCamera?: MapCamera | null;
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
+  onCameraChange?: (camera: MapCamera) => void;
   path: EclipsePathGeometry;
+  totalitySummary?: string;
 }
 
 const coordinates = (points: readonly GeoPoint[]): GeoPoint[] =>
@@ -55,15 +60,25 @@ const initialRegion = ({ east, north, south, west }: MapBounds) => ({
   longitudeDelta: Math.max(1, (east - west) * 1.15),
 });
 
+const cameraRegion = (camera: MapCamera) => ({
+  latitude: camera.center.latitude,
+  latitudeDelta: camera.latitudeDelta,
+  longitude: camera.center.longitude,
+  longitudeDelta: camera.longitudeDelta,
+});
+
 const edgePadding = { bottom: 36, left: 28, right: 28, top: 52 };
 
 export const MapPanel = ({
   bounds,
   candidates = [],
   contours,
+  initialCamera = null,
   location,
   onLocationChange,
+  onCameraChange,
   path,
+  totalitySummary = "Current point",
 }: MapPanelProps) => {
   const mapRef = useRef<MapView | null>(null);
   const mapReady = useRef(false);
@@ -116,13 +131,21 @@ export const MapPanel = ({
   return (
     <View style={styles.container}>
       <MapView
-        initialRegion={initialRegion(bounds)}
+        initialRegion={initialCamera ? cameraRegion(initialCamera) : initialRegion(bounds)}
         loadingEnabled
         moveOnMarkerPress={false}
         onMapReady={() => {
           mapReady.current = true;
-          fitExtent(showFullPath, false);
+          if (!initialCamera) fitExtent(showFullPath, false);
         }}
+        onRegionChangeComplete={(region) =>
+          onCameraChange?.({
+            center: { latitude: region.latitude, longitude: region.longitude },
+            latitudeDelta: region.latitudeDelta,
+            longitudeDelta: region.longitudeDelta,
+            zoom: 0,
+          })
+        }
         onPress={handleMapPress}
         pitchEnabled={false}
         ref={mapRef}
@@ -225,6 +248,12 @@ export const MapPanel = ({
           zIndex={30}
         >
           <View style={styles.selectedMarker} />
+          <Callout>
+            <View style={styles.callout}>
+              <Text style={styles.calloutTitle}>Selected location</Text>
+              <Text>{totalitySummary}</Text>
+            </View>
+          </Callout>
         </Marker>
       </MapView>
 
@@ -265,6 +294,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#d68cff",
     height: 16,
     width: 16,
+  },
+  callout: {
+    maxWidth: 240,
+    padding: 4,
+  },
+  calloutTitle: {
+    fontWeight: "700",
+    marginBottom: 2,
   },
   candidateMarker: {
     backgroundColor: "#65d6a6",
