@@ -72,6 +72,9 @@ then run every check below against that exact deployment.
   option menu at a time on phone and desktop layouts.
 - On a narrow phone, confirm both UTC timeline endpoint labels wrap or shrink
   within the viewport without overlapping or forcing horizontal page scrolling.
+- On a short phone screen, confirm Map, Horizon, Contact times, Weather, Sources,
+  and QR pages scroll vertically in both directions and content is not clipped at
+  the viewport edge.
 - Open Jump and confirm C1, C2, Maximum, C3, and C4 remain available for a total
   eclipse.
 - Confirm every altitude guide has a degree label and the visible key names the
@@ -81,6 +84,15 @@ then run every check below against that exact deployment.
   observer elevation, and terrain FOV without hiding the chart or timeline.
 - Confirm the horizon opens at 45°, shows N/E/S/W bearings, reaches both window
   edges, and adjusts from 30° through 180° using the View menu.
+- On a device with a compass, tap **Align with compass** and confirm the azimuth
+  labels and sampled horizon recenter on the device heading. On devices without
+  compass hardware, confirm the control is absent.
+- Pan and zoom the map, switch to Horizon, then return to Map. Confirm the map
+  keeps its center and zoom until the app is force-reloaded.
+- Hover the selected map point on web, or tap it on native, and confirm the
+  tooltip/callout shows totality duration and maximum time, or says no totality.
+- On Horizon, confirm the time guide explains the C1–C4 window, C2–C3 totality
+  window, totality duration, and maximum time for the selected location.
 - Confirm every whole hour within C1–C4 appears on the eclipse path in UTC using
   labels such as `19:00Z` and `20:00Z`.
 - When a whole hour falls within the 30-minute before/after context, confirm it

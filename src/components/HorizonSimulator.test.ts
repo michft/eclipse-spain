@@ -10,6 +10,9 @@ import { theme } from "../styles/theme";
 import { ActionButton } from "./ActionButton";
 
 const mocks = vi.hoisted(() => ({
+  compassAvailable: false,
+  compassHeading: null as number | null,
+  requestHeading: vi.fn(),
   sliderProps: [] as Record<string, unknown>[],
 }));
 
@@ -58,6 +61,14 @@ vi.mock("./TimelineSlider", () => ({
     mocks.sliderProps.push(props);
     return createElement(Text, null, "slider");
   },
+}));
+
+vi.mock("../services/compass", () => ({
+  useCompassHeading: () => ({
+    available: mocks.compassAvailable,
+    headingDegrees: mocks.compassHeading,
+    requestHeading: mocks.requestHeading,
+  }),
 }));
 
 import { HorizonSimulator } from "./HorizonSimulator";
@@ -132,6 +143,9 @@ describe("HorizonSimulator", () => {
     }
     renderer = null;
     mocks.sliderProps.length = 0;
+    mocks.compassAvailable = false;
+    mocks.compassHeading = null;
+    mocks.requestHeading.mockClear();
   });
 
   it("visibly labels chart lines and every interaction group", async () => {
@@ -282,8 +296,15 @@ describe("HorizonSimulator", () => {
         (node) =>
           node.props.accessibilityLabel ===
           "Animated observer sky showing Sun and Moon above the sampled terrain horizon",
-      ).props.viewBox,
+    ).props.viewBox,
     ).toBe("0 0 1200 360");
+    expect(
+      renderer?.root.find(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "Animated observer sky showing Sun and Moon above the sampled terrain horizon",
+      ).props.height,
+    ).toBe(600);
     expect(
       renderer?.root.findAll(
         (node) => node.props.accessibilityLabel === "Simulation time pin",
@@ -419,6 +440,34 @@ describe("HorizonSimulator", () => {
     expect(
       pathLines?.filter((node) => node.props.stroke === theme.color.accentStrong),
     ).toHaveLength(2);
+  });
+
+  it("offers compass alignment and recentres azimuth labels", async () => {
+    mocks.compassAvailable = true;
+    mocks.compassHeading = 0;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    await act(async () => {
+      renderer = create(
+        createElement(HorizonSimulator, {
+          contacts,
+          elevation,
+          kind: "total",
+          location: { latitude: 43.3717, longitude: -6.1883 },
+        }),
+      );
+    });
+
+    const alignButton = renderer?.root.findByProps({
+      accessibilityLabel: "Align horizon with compass",
+    });
+    expect(alignButton).toBeDefined();
+    await act(async () => alignButton?.props.onPress());
+    expect(mocks.requestHeading).toHaveBeenCalled();
+    expect(
+      renderer?.root.findAllByType(SvgText).map((node) => node.children.join("")),
+    ).toEqual(expect.arrayContaining(["90° az", "135° az"]));
+    mocks.compassAvailable = false;
+    mocks.compassHeading = null;
   });
 
   it("omits timeline markers with invalid contact times", async () => {

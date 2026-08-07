@@ -16,6 +16,7 @@ import { ActionButton } from "./src/components/ActionButton";
 import { AudioTimelinePanel } from "./src/components/AudioTimelinePanel";
 import { HorizonSimulator } from "./src/components/HorizonSimulator";
 import { MapPanel } from "./src/components/MapPanel";
+import type { MapCamera } from "./src/components/mapViewState";
 import {
   ECLIPSE_EVENTS,
   getEclipseEvent,
@@ -97,7 +98,10 @@ const PageView = ({
   title: string;
 }) => (
   <ScrollView
-    contentContainerStyle={styles.pageContent}
+    alwaysBounceVertical
+    contentContainerStyle={[styles.pageContent, styles.scrollContent]}
+    keyboardShouldPersistTaps="handled"
+    nestedScrollEnabled
     showsVerticalScrollIndicator={false}
     style={styles.pageView}
   >
@@ -188,6 +192,7 @@ export default function App() {
   const [activePage, setActivePage] = useState<AppPage>("home");
   const [eventMenuOpen, setEventMenuOpen] = useState(false);
   const [mapKeyVisible, setMapKeyVisible] = useState(false);
+  const [mapCamera, setMapCamera] = useState<MapCamera | null>(null);
   const [horizonTechnicalVisible, setHorizonTechnicalVisible] = useState(false);
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
@@ -287,6 +292,17 @@ export default function App() {
     analysis.cloud.result.status === "success"
       ? analysis.cloud.result.value
       : null;
+  const totalitySummary =
+    eclipse?.totalityDurationSeconds !== null &&
+    eclipse?.totalityDurationSeconds !== undefined &&
+    eclipse.contacts.maximum
+      ? `Totality: ${formatDuration(eclipse.totalityDurationSeconds)} · maximum ${formatUtc(eclipse.contacts.maximum.utc)}`
+      : "No totality at this location";
+  const horizonTimeDescription = eclipse
+    ? eclipse.contacts.c2 && eclipse.contacts.c3 && eclipse.contacts.maximum
+      ? `Time guide: the chart runs from 30 minutes before C1 to 30 minutes after C4. Totality runs from ${formatUtc(eclipse.contacts.c2.utc)} to ${formatUtc(eclipse.contacts.c3.utc)} (${formatDuration(eclipse.totalityDurationSeconds)}); maximum is ${formatUtc(eclipse.contacts.maximum.utc)}.`
+      : "Time guide: the chart runs from 30 minutes before C1 to 30 minutes after C4. No totality occurs at this location."
+    : "";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -348,9 +364,11 @@ export default function App() {
       <View style={styles.contentArea}>
         {activePage === "home" ? (
           <ScrollView
+            alwaysBounceVertical
             contentContainerStyle={styles.mapPageContent}
             key="map-view"
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
             style={styles.mapPage}
           >
             {/* Map View */}
@@ -365,9 +383,12 @@ export default function App() {
                     : []
                 }
                 contours={selectedEvent.contours}
+                initialCamera={mapCamera}
                 location={location}
                 onLocationChange={(nextLocation) => selectLocation(nextLocation)}
+                onCameraChange={setMapCamera}
                 path={selectedEvent.path}
+                totalitySummary={totalitySummary}
               />
 
               <View style={styles.mapKeyToggle}>
@@ -480,6 +501,9 @@ export default function App() {
             />
             {elevation && eclipse ? (
               <>
+                <Text style={styles.horizonTimeDescription}>
+                  {horizonTimeDescription}
+                </Text>
                 <View style={styles.simulatorSection}>
                   <Text style={styles.subSectionLabel}>Observer Sky View</Text>
                   <View style={styles.horizonFrame}>
@@ -768,6 +792,9 @@ const styles = StyleSheet.create({
     padding: theme.space.medium,
     paddingBottom: theme.space.xlarge,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   pageTitle: {
     color: theme.color.text,
     fontSize: 24,
@@ -919,6 +946,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.space.medium,
     marginHorizontal: -theme.space.medium,
     paddingVertical: theme.space.medium,
+  },
+  horizonTimeDescription: {
+    color: theme.color.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: theme.space.large,
   },
   metricsGrid: {
     flexDirection: "row",

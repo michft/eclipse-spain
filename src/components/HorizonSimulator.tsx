@@ -27,6 +27,7 @@ import {
   eclipsePhaseAt,
 } from "../domain/eclipseOverlay";
 import type { ElevationProfileResult } from "../services/openMeteo";
+import { useCompassHeading } from "../services/compass";
 import { theme } from "../styles/theme";
 import { ActionButton } from "./ActionButton";
 import { EclipseContactOverlay } from "./EclipseContactOverlay";
@@ -180,6 +181,10 @@ export const HorizonSimulator = ({
   const [chartWidth, setChartWidth] = useState(WIDTH);
   const [timelineFocused, setTimelineFocused] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [alignedCenterAzimuth, setAlignedCenterAzimuth] = useState<number | null>(null);
+  const [alignRequested, setAlignRequested] = useState(false);
+  const { available: compassAvailable, headingDegrees, requestHeading } =
+    useCompassHeading();
 
   useEffect(() => {
     setPlaying(false);
@@ -191,6 +196,13 @@ export const HorizonSimulator = ({
       Math.min(DEFAULT_FIELD_OF_VIEW_DEGREES, elevation.skyline.fieldOfViewDegrees),
     );
   }, [elevation.skyline.centerAzimuthDegrees, elevation.skyline.fieldOfViewDegrees]);
+
+  useEffect(() => {
+    if (alignRequested && headingDegrees !== null) {
+      setAlignedCenterAzimuth(headingDegrees);
+      setAlignRequested(false);
+    }
+  }, [alignRequested, headingDegrees]);
 
   useEffect(() => {
     if (!playing || !Number.isFinite(simulationEndMilliseconds)) {
@@ -296,6 +308,29 @@ export const HorizonSimulator = ({
   }
 
   const { skyline } = elevation;
+  const maximumAlignmentOffset = Math.max(
+    0,
+    (skyline.fieldOfViewDegrees - fieldOfViewDegrees) / 2,
+  );
+  const requestedAlignmentOffset =
+    alignedCenterAzimuth === null
+      ? 0
+      : azimuthOffset(alignedCenterAzimuth, skyline.centerAzimuthDegrees);
+  const alignmentOffset = Math.max(
+    -maximumAlignmentOffset,
+    Math.min(maximumAlignmentOffset, requestedAlignmentOffset),
+  );
+  const centerAzimuthDegrees =
+    skyline.centerAzimuthDegrees + alignmentOffset;
+  const terrainSamples = skyline.samples
+    .map((sample) => ({
+      ...sample,
+      azimuthOffsetDegrees: azimuthOffset(
+        sample.azimuthDegrees,
+        centerAzimuthDegrees,
+      ),
+    }))
+    .sort((left, right) => left.azimuthOffsetDegrees - right.azimuthOffsetDegrees);
   const maximumFieldOfViewDegrees = Math.min(
     MAXIMUM_FIELD_OF_VIEW_DEGREES,
     skyline.fieldOfViewDegrees,
@@ -317,7 +352,7 @@ export const HorizonSimulator = ({
         state.sun.altitudeDegrees,
         state.moon.altitudeDegrees,
       ]),
-      ...skyline.samples.map((sample) => sample.terrainAngleDegrees),
+      ...terrainSamples.map((sample) => sample.terrainAngleDegrees),
     ) + 4,
   );
   const minimumAltitude = -3;
@@ -344,7 +379,7 @@ export const HorizonSimulator = ({
         altitude: state[body].altitudeDegrees,
         offset: azimuthOffset(
           state[body].azimuthDegrees,
-          skyline.centerAzimuthDegrees,
+          centerAzimuthDegrees,
         ),
       }))
       .filter((point) => Math.abs(point.offset) <= halfField)
@@ -398,11 +433,11 @@ export const HorizonSimulator = ({
   const visibleHourMarkers = hourlyPath.flatMap((marker) => {
     const sunOffset = azimuthOffset(
       marker.state.sun.azimuthDegrees,
-      skyline.centerAzimuthDegrees,
+      centerAzimuthDegrees,
     );
     const moonOffset = azimuthOffset(
       marker.state.moon.azimuthDegrees,
-      skyline.centerAzimuthDegrees,
+      centerAzimuthDegrees,
     );
     const labelOffset = (sunOffset + moonOffset) / 2;
     return Math.abs(labelOffset) <= halfField
@@ -412,14 +447,14 @@ export const HorizonSimulator = ({
   const visibleTerrainSamples = [
     {
       azimuthOffsetDegrees: -halfField,
-      terrainAngleDegrees: interpolateTerrain(skyline.samples, -halfField),
+      terrainAngleDegrees: interpolateTerrain(terrainSamples, -halfField),
     },
-    ...skyline.samples.filter(
+    ...terrainSamples.filter(
       (sample) => Math.abs(sample.azimuthOffsetDegrees) < halfField,
     ),
     {
       azimuthOffsetDegrees: halfField,
-      terrainAngleDegrees: interpolateTerrain(skyline.samples, halfField),
+      terrainAngleDegrees: interpolateTerrain(terrainSamples, halfField),
     },
   ];
   const terrainPoints = [
@@ -432,7 +467,7 @@ export const HorizonSimulator = ({
   ].join(" ");
   const sunOffset = azimuthOffset(
     current.sun.azimuthDegrees,
-    skyline.centerAzimuthDegrees,
+    centerAzimuthDegrees,
   );
   const verticalPixelsPerDegree =
     (HEIGHT - PAD_TOP - PAD_BOTTOM) / (maximumAltitude - minimumAltitude);
@@ -461,12 +496,12 @@ export const HorizonSimulator = ({
   const moonRadiusX =
     current.moon.angularRadiusDegrees * horizontalPixelsPerAngularDegree;
   const moonRadiusY = current.moon.angularRadiusDegrees * verticalPixelsPerDegree;
-  const terrainAtSun = interpolateTerrain(skyline.samples, sunOffset);
+  const terrainAtSun = interpolateTerrain(terrainSamples, sunOffset);
   const clearance = current.sun.altitudeDegrees - terrainAtSun;
   const visibleCardinals = CARDINAL_POINTS.flatMap((cardinal) => {
     const offset = azimuthOffset(
       cardinal.bearing,
-      skyline.centerAzimuthDegrees,
+      centerAzimuthDegrees,
     );
     return Math.abs(offset) <= halfField ? [{ ...cardinal, offset }] : [];
   });
@@ -509,6 +544,19 @@ export const HorizonSimulator = ({
       >
         Guide · {showGuide ? "Hide" : "Show"}
       </ActionButton>
+      {compassAvailable !== false ? (
+        <ActionButton
+          accessibilityLabel="Align horizon with compass"
+          disabled={alignRequested}
+          onPress={() => {
+            requestHeading();
+            setAlignRequested(true);
+          }}
+          secondary
+        >
+          {alignRequested ? "Aligning…" : "Align with compass"}
+        </ActionButton>
+      ) : null}
       {showGuide ? (
         <>
           <View accessibilityLabel="Chart line labels" style={styles.legend}>
@@ -565,7 +613,7 @@ export const HorizonSimulator = ({
           >
           <Svg
             accessibilityLabel="Animated observer sky showing Sun and Moon above the sampled terrain horizon"
-            height={HEIGHT}
+            height={(chartWidth * HEIGHT) / WIDTH}
             viewBox={`0 0 ${chartWidth} ${HEIGHT}`}
             width="100%"
           >
@@ -729,7 +777,7 @@ export const HorizonSimulator = ({
             strokeWidth={2}
           />
           <SvgText fill="#d9ecff" fontSize={11} x={PAD_LEFT} y={HEIGHT - 10}>
-            {normalizeAzimuth(skyline.centerAzimuthDegrees - halfField).toFixed(0)}° az
+            {normalizeAzimuth(centerAzimuthDegrees - halfField).toFixed(0)}° az
           </SvgText>
           <SvgText
             fill="#d9ecff"
@@ -738,7 +786,7 @@ export const HorizonSimulator = ({
             x={chartWidth - PAD_RIGHT}
             y={HEIGHT - 10}
           >
-            {normalizeAzimuth(skyline.centerAzimuthDegrees + halfField).toFixed(0)}° az
+            {normalizeAzimuth(centerAzimuthDegrees + halfField).toFixed(0)}° az
           </SvgText>
           </Svg>
           <View
