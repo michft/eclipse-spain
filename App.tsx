@@ -23,6 +23,7 @@ import {
   type EclipseEventDefinition,
   type EclipseEventId,
 } from "./src/data/eclipseEvents";
+import type { MapRegionOption } from "./src/components/mapViewState";
 import {
   CONTACT_IDS,
   type EclipseContact,
@@ -52,6 +53,13 @@ import { theme } from "./src/styles/theme";
 
 const defaultLocation = (event: EclipseEventDefinition): GeoPoint =>
   event.mapCenter;
+
+const ICELAND_2026_BOUNDS = {
+  east: -12.5,
+  north: 67,
+  south: 60,
+  west: -35,
+} as const;
 
 const formatUtc = (iso: string): string =>
   new Intl.DateTimeFormat("en-GB", {
@@ -193,6 +201,7 @@ export default function App() {
   const [eventMenuOpen, setEventMenuOpen] = useState(false);
   const [mapKeyVisible, setMapKeyVisible] = useState(false);
   const [mapCamera, setMapCamera] = useState<MapCamera | null>(null);
+  const [mapRegionId, setMapRegionId] = useState("spain");
   const [horizonTechnicalVisible, setHorizonTechnicalVisible] = useState(false);
   const { analysis, analyze } = useLocationAnalysis(
     selectedEvent,
@@ -303,6 +312,13 @@ export default function App() {
       ? `Time guide: the chart runs from 30 minutes before C1 to 30 minutes after C4. Totality runs from ${formatUtc(eclipse.contacts.c2.utc)} to ${formatUtc(eclipse.contacts.c3.utc)} (${formatDuration(eclipse.totalityDurationSeconds)}); maximum is ${formatUtc(eclipse.contacts.maximum.utc)}.`
       : "Time guide: the chart runs from 30 minutes before C1 to 30 minutes after C4. No totality occurs at this location."
     : "";
+  const mapRegionOptions: readonly MapRegionOption[] | undefined =
+    selectedEvent.id === "spain-2026"
+      ? [
+          { bounds: selectedEvent.mapBounds, id: "spain", label: "Spain" },
+          { bounds: ICELAND_2026_BOUNDS, id: "iceland", label: "Iceland" },
+        ]
+      : undefined;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -388,6 +404,9 @@ export default function App() {
                 onLocationChange={(nextLocation) => selectLocation(nextLocation)}
                 onCameraChange={setMapCamera}
                 path={selectedEvent.path}
+                onRegionChange={setMapRegionId}
+                regionOptions={mapRegionOptions}
+                selectedRegionId={mapRegionOptions ? mapRegionId : undefined}
                 totalitySummary={totalitySummary}
               />
 

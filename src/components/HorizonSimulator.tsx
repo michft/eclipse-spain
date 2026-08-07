@@ -522,10 +522,34 @@ export const HorizonSimulator = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.liveMetrics}>
+      <View style={styles.horizonHeader}>
         <View>
           <Text style={styles.time}>{formatUtc(simulatedMilliseconds)}</Text>
           <Text style={styles.muted}>{(current.obscuration * 100).toFixed(2)}% obscured</Text>
+        </View>
+        <View style={styles.horizonHeaderActions}>
+          <ActionButton
+            accessibilityState={{ expanded: showGuide }}
+            onPress={() => setShowGuide((visible) => !visible)}
+            secondary
+            style={styles.compactHeaderButton}
+          >
+            Guide · {showGuide ? "Hide" : "Show"}
+          </ActionButton>
+          {compassAvailable !== false ? (
+            <ActionButton
+              accessibilityLabel="Align horizon with compass"
+              disabled={alignRequested}
+              onPress={() => {
+                requestHeading();
+                setAlignRequested(true);
+              }}
+              secondary
+              style={styles.compactHeaderButton}
+            >
+              {alignRequested ? "Aligning…" : "Compass"}
+            </ActionButton>
+          ) : null}
         </View>
         <View style={styles.rightMetrics}>
           <Text style={styles.metricText}>
@@ -536,27 +560,6 @@ export const HorizonSimulator = ({
           </Text>
         </View>
       </View>
-      <ActionButton
-        accessibilityState={{ expanded: showGuide }}
-        onPress={() => setShowGuide((visible) => !visible)}
-        secondary
-        style={styles.detailsToggle}
-      >
-        Guide · {showGuide ? "Hide" : "Show"}
-      </ActionButton>
-      {compassAvailable !== false ? (
-        <ActionButton
-          accessibilityLabel="Align horizon with compass"
-          disabled={alignRequested}
-          onPress={() => {
-            requestHeading();
-            setAlignRequested(true);
-          }}
-          secondary
-        >
-          {alignRequested ? "Aligning…" : "Align with compass"}
-        </ActionButton>
-      ) : null}
       {showGuide ? (
         <>
           <View accessibilityLabel="Chart line labels" style={styles.legend}>
@@ -1040,6 +1043,9 @@ export const HorizonSimulator = ({
 
 const styles = StyleSheet.create({
   container: { gap: theme.space.medium, paddingHorizontal: theme.space.medium },
+  horizonHeader: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: theme.space.small, justifyContent: "space-between" },
+  horizonHeaderActions: { flexDirection: "row", gap: theme.space.xsmall },
+  compactHeaderButton: { paddingHorizontal: theme.space.small },
   liveMetrics: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", gap: theme.space.medium, justifyContent: "space-between" },
   time: { color: theme.color.accent, fontSize: 23, fontVariant: ["tabular-nums"], fontWeight: "900" },
   muted: { color: theme.color.muted, fontSize: 12 },

@@ -194,4 +194,61 @@ describe("MapPanel native parity", () => {
     await act(async () => map?.props.onMapReady());
     expect(mapMocks.fitToCoordinates).not.toHaveBeenCalled();
   });
+
+  it("offers Spain and Iceland region choices", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const onRegionChange = vi.fn();
+    const regions = [
+      {
+        bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+        id: "spain",
+        label: "Spain",
+      },
+      {
+        bounds: { east: -12.5, north: 67, south: 60, west: -35 },
+        id: "iceland",
+        label: "Iceland",
+      },
+    ];
+    const spainBounds = regions[0]!;
+    await act(async () => {
+      renderer = create(
+        createElement(MapPanel, {
+          bounds: spainBounds.bounds,
+          contours: { obscurationContours: [], timeContours: [] },
+          location: { latitude: 43, longitude: -4 },
+          onLocationChange: vi.fn(),
+          onRegionChange,
+          path: {
+            centerLine: [],
+            northernLimit: [],
+            southernLimit: [],
+            totalityArea: [{ latitude: 44, longitude: -7 }],
+          },
+          regionOptions: regions,
+          selectedRegionId: "spain",
+        }),
+      );
+    });
+
+    expect(
+      renderer?.root.findAllByProps({ accessibilityRole: "radio" }),
+    ).toHaveLength(2);
+    const map = renderer?.root.findByType(MapView);
+    await act(async () => map?.props.onMapReady());
+    mapMocks.fitToCoordinates.mockClear();
+    await act(async () =>
+      renderer?.root.findByProps({ accessibilityLabel: "Show Iceland" }).props.onPress(),
+    );
+    expect(onRegionChange).toHaveBeenCalledWith("iceland");
+    expect(mapMocks.fitToCoordinates).toHaveBeenCalledWith(
+      [
+        { latitude: 67, longitude: -35 },
+        { latitude: 67, longitude: -12.5 },
+        { latitude: 60, longitude: -12.5 },
+        { latitude: 60, longitude: -35 },
+      ],
+      expect.objectContaining({ animated: true }),
+    );
+  });
 });

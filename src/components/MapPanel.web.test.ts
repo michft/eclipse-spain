@@ -183,4 +183,52 @@ describe("MapPanel web stacking and controls", () => {
     );
     expect(mapMocks.fitBounds).toHaveBeenCalledOnce();
   });
+
+  it("offers Spain and Iceland region choices", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const onRegionChange = vi.fn();
+    await act(async () => {
+      renderer = create(
+        createElement(MapPanel, {
+          bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+          contours: { obscurationContours: [], timeContours: [] },
+          location: { latitude: 43, longitude: -4 },
+          onLocationChange: vi.fn(),
+          onRegionChange,
+          path: {
+            centerLine: [],
+            northernLimit: [],
+            southernLimit: [],
+            totalityArea: [{ latitude: 44, longitude: -7 }],
+          },
+          regionOptions: [
+            {
+              bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+              id: "spain",
+              label: "Spain",
+            },
+            {
+              bounds: { east: -12.5, north: 67, south: 60, west: -35 },
+              id: "iceland",
+              label: "Iceland",
+            },
+          ],
+          selectedRegionId: "spain",
+        }),
+      );
+    });
+
+    const select = renderer?.root.findByType("select");
+    expect(select?.props.value).toBe("spain");
+    expect(select?.findAllByType("option").map((option) => option.props.children)).toEqual([
+      "Spain",
+      "Iceland",
+    ]);
+    mapMocks.fitBounds.mockClear();
+    await act(async () =>
+      select?.props.onChange({ currentTarget: { value: "iceland" } }),
+    );
+    expect(onRegionChange).toHaveBeenCalledWith("iceland");
+    expect(mapMocks.fitBounds).toHaveBeenCalledOnce();
+  });
 });
