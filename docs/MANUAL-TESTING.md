@@ -26,8 +26,9 @@ then run every check below against that exact deployment.
 - Confirm the map moves to the event region and shows the gold centre line.
 - For all three events, zoom out and follow the complete gold centre line and
   white north/south limits from start to end; confirm the 100% corridor is filled.
-- Switch between **Full eclipse path** and **Selected region** and confirm both
-  extents remain available on narrow and desktop layouts.
+- For the 2026 event, switch between **Spain** and **Iceland** and confirm each
+  map region fits correctly. For other events, confirm **Full path** and
+  **Selected region** remain available on narrow and desktop layouts.
 - On a short phone or landscape viewport, vertically scroll the Map page and
   reach the coordinate fields and every map control. On desktop, wheel over the
   map and confirm the page scrolls; use the visible `+`/`−` controls to zoom.

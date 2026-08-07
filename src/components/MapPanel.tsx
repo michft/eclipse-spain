@@ -12,6 +12,7 @@ import type { MapBounds } from "../data/eclipseEvents";
 import type { EclipsePathGeometry } from "../data/eclipsePaths";
 import type { GeoPoint } from "../domain/geo";
 import type { MapCamera } from "./mapViewState";
+import type { MapRegionOption } from "./mapViewState";
 import { MAP_HEIGHT } from "../styles/layout";
 import { theme } from "../styles/theme";
 
@@ -36,7 +37,10 @@ interface MapPanelProps {
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
   onCameraChange?: (camera: MapCamera) => void;
+  onRegionChange?: (regionId: string) => void;
   path: EclipsePathGeometry;
+  regionOptions?: readonly MapRegionOption[] | undefined;
+  selectedRegionId?: string | undefined;
   totalitySummary?: string;
 }
 
@@ -77,13 +81,19 @@ export const MapPanel = ({
   location,
   onLocationChange,
   onCameraChange,
+  onRegionChange,
   path,
   totalitySummary = "Current point",
+  regionOptions,
+  selectedRegionId,
 }: MapPanelProps) => {
   const mapRef = useRef<MapView | null>(null);
   const mapReady = useRef(false);
   const previousLocation = useRef(location);
   const [showFullPath, setShowFullPath] = useState(true);
+  const selectedRegion = regionOptions?.find(
+    (option) => option.id === selectedRegionId,
+  );
 
   const fitExtent = useCallback(
     (fullPath: boolean, animated: boolean) => {
@@ -100,8 +110,8 @@ export const MapPanel = ({
   );
 
   useEffect(() => {
-    if (mapReady.current) fitExtent(showFullPath, true);
-  }, [fitExtent]);
+    if (mapReady.current && !regionOptions) fitExtent(showFullPath, true);
+  }, [fitExtent, regionOptions]);
 
   useEffect(() => {
     const changed =
@@ -121,6 +131,18 @@ export const MapPanel = ({
     if (mapReady.current) fitExtent(fullPath, true);
   };
 
+  const selectRegion = (regionId: string) => {
+    const region = regionOptions?.find((option) => option.id === regionId);
+    if (!region) return;
+    onRegionChange?.(regionId);
+    if (mapReady.current) {
+      mapRef.current?.fitToCoordinates(boundsCoordinates(region.bounds), {
+        animated: true,
+        edgePadding,
+      });
+    }
+  };
+
   const handleMapPress = ({ nativeEvent }: MapPressEvent) => {
     onLocationChange({
       latitude: nativeEvent.coordinate.latitude,
@@ -136,7 +158,14 @@ export const MapPanel = ({
         moveOnMarkerPress={false}
         onMapReady={() => {
           mapReady.current = true;
-          if (!initialCamera) fitExtent(showFullPath, false);
+          if (selectedRegion && !initialCamera) {
+            mapRef.current?.fitToCoordinates(boundsCoordinates(selectedRegion.bounds), {
+              animated: false,
+              edgePadding,
+            });
+          } else if (!initialCamera) {
+            fitExtent(showFullPath, false);
+          }
         }}
         onRegionChangeComplete={(region) =>
           onCameraChange?.({
@@ -258,7 +287,23 @@ export const MapPanel = ({
       </MapView>
 
       <View accessibilityRole="radiogroup" style={styles.extentControl}>
-        <Pressable
+        {regionOptions ? regionOptions.map((region) => (
+          <Pressable
+            accessibilityLabel={`Show ${region.label}`}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: selectedRegionId === region.id }}
+            key={region.id}
+            onPress={() => selectRegion(region.id)}
+            style={({ pressed }) => [
+              styles.extentOption,
+              selectedRegionId === region.id ? styles.extentOptionSelected : null,
+              pressed ? styles.extentOptionPressed : null,
+            ]}
+          >
+            <Text style={styles.extentOptionText}>{region.label}</Text>
+          </Pressable>
+        )) : null}
+        {!regionOptions ? <Pressable
           accessibilityLabel="Show full eclipse path"
           accessibilityRole="radio"
           accessibilityState={{ checked: showFullPath }}
@@ -270,8 +315,8 @@ export const MapPanel = ({
           ]}
         >
           <Text style={styles.extentOptionText}>Full path</Text>
-        </Pressable>
-        <Pressable
+        </Pressable> : null}
+        {!regionOptions ? <Pressable
           accessibilityLabel="Show selected region"
           accessibilityRole="radio"
           accessibilityState={{ checked: !showFullPath }}
@@ -283,7 +328,7 @@ export const MapPanel = ({
           ]}
         >
           <Text style={styles.extentOptionText}>Region</Text>
-        </Pressable>
+        </Pressable> : null}
       </View>
     </View>
   );

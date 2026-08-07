@@ -19,6 +19,7 @@ import type { GeoPoint } from "../domain/geo";
 import { MAP_HEIGHT } from "../styles/layout";
 import { theme } from "../styles/theme";
 import type { MapCamera } from "./mapViewState";
+import type { MapRegionOption } from "./mapViewState";
 
 type ContourPath = readonly (readonly [number, number])[];
 
@@ -41,7 +42,10 @@ interface MapPanelProps {
   location: GeoPoint;
   onLocationChange: (location: GeoPoint) => void;
   onCameraChange?: (camera: MapCamera) => void;
+  onRegionChange?: (regionId: string) => void;
   path: EclipsePathGeometry;
+  regionOptions?: readonly MapRegionOption[] | undefined;
+  selectedRegionId?: string | undefined;
   totalitySummary?: string;
 }
 
@@ -162,11 +166,28 @@ export const MapPanel = ({
   location,
   onLocationChange,
   onCameraChange,
+  onRegionChange,
   path,
+  regionOptions,
+  selectedRegionId,
   totalitySummary = "Current point",
 }: MapPanelProps) => {
   const [showFullPath, setShowFullPath] = useState(true);
   const [extentRequest, setExtentRequest] = useState(0);
+  const selectedRegion = regionOptions?.find(
+    (option) => option.id === selectedRegionId,
+  );
+  const extentBounds = selectedRegion?.bounds ??
+    (showFullPath ? fullPathBounds(path) : bounds);
+  const extentOptions = regionOptions ?? [
+    { bounds: fullPathBounds(path), id: "full", label: "Full path" },
+    { bounds, id: "region", label: "Selected region" },
+  ];
+  const extentValue = selectedRegion
+    ? selectedRegion.id
+    : showFullPath
+      ? "full"
+      : "region";
   return (
     <div style={{ height: MAP_HEIGHT, position: "relative", width: "100%" }}>
       <MapContainer
@@ -183,11 +204,11 @@ export const MapPanel = ({
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
     <FitEventBounds
-      bounds={showFullPath ? fullPathBounds(path) : bounds}
+      bounds={extentBounds}
       enabled={!initialCamera && extentRequest === 0}
     />
     <FitRequestedExtent
-      bounds={showFullPath ? fullPathBounds(path) : bounds}
+      bounds={extentBounds}
       request={extentRequest}
     />
     <KeepLocationVisible location={location} preserveCamera={initialCamera !== null} />
@@ -307,14 +328,22 @@ export const MapPanel = ({
         <select
           aria-label="Map extent"
           onChange={(event) => {
-            setShowFullPath(event.currentTarget.value === "full");
+            const nextValue = event.currentTarget.value;
+            if (regionOptions) {
+              onRegionChange?.(nextValue);
+            } else {
+              setShowFullPath(nextValue === "full");
+            }
             setExtentRequest((request) => request + 1);
           }}
           style={mapControlStyle}
-          value={showFullPath ? "full" : "region"}
+          value={extentValue}
         >
-          <option value="full">Full eclipse path</option>
-          <option value="region">Selected region</option>
+          {extentOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
     </div>
