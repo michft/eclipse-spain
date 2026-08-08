@@ -1,16 +1,15 @@
 import {
   Body,
-  EclipseKind,
   Equator,
   Horizon,
-  Observer,
-  SearchLocalSolarEclipse,
-  type EclipseEvent,
   type EquatorialCoordinates,
+  type Observer,
 } from "astronomy-engine";
 
 import type { EclipseEventDefinition } from "../data/eclipseEvents";
+import { createWgs84Observer } from "./astronomyObserver";
 import { distanceToPolylineKm, isValidGeoPoint, type GeoPoint } from "./geo";
+import { calculateNasaLocalEclipse } from "./nasaBesselian";
 
 const ASTRONOMICAL_UNIT_KM = 149_597_870.7;
 const SUN_RADIUS_KM = 695_700;
@@ -73,21 +72,6 @@ const angularSeparationRadians = (
         Math.cos(firstDec) * Math.cos(secondDec) * Math.cos(raDelta),
     ),
   );
-};
-
-const calculateMagnitude = (
-  observer: Observer,
-  peakTime: EclipseEvent["time"],
-): number => {
-  const sun = Equator(Body.Sun, peakTime, observer, false, true);
-  const moon = Equator(Body.Moon, peakTime, observer, false, true);
-  const separation = angularSeparationRadians(sun.ra, sun.dec, moon.ra, moon.dec);
-  const sunRadius = Math.asin(SUN_RADIUS_KM / (sun.dist * ASTRONOMICAL_UNIT_KM));
-  const moonRadius = Math.asin(
-    MOON_RADIUS_KM / (moon.dist * ASTRONOMICAL_UNIT_KM),
-  );
-
-  return Math.max(0, (sunRadius + moonRadius - separation) / (2 * sunRadius));
 };
 
 const circleOverlapFraction = (
@@ -155,11 +139,7 @@ export const calculateSolarObscuration = (
   ) {
     return 0;
   }
-  const observer = new Observer(
-    location.latitude,
-    location.longitude,
-    elevationMeters,
-  );
+  const observer = createWgs84Observer(location, elevationMeters);
   const sun = Equator(Body.Sun, date, observer, false, true);
   const moon = Equator(Body.Moon, date, observer, false, true);
   return obscurationFrom(sun, moon);
@@ -177,11 +157,7 @@ export const calculateObserverSky = (
   ) {
     return null;
   }
-  const observer = new Observer(
-    location.latitude,
-    location.longitude,
-    elevationMeters,
-  );
+  const observer = createWgs84Observer(location, elevationMeters);
   const sunEquator = Equator(Body.Sun, date, observer, true, true);
   const moonEquator = Equator(Body.Moon, date, observer, true, true);
   const sunHorizon = Horizon(
@@ -220,28 +196,19 @@ export const calculateObserverSky = (
 const makeContact = (
   id: ContactId,
   label: string,
-  event: EclipseEvent | undefined,
-  observer: Observer,
+  utc: Date | null,
+  sunAltitudeDegrees: number | null,
+  sunAzimuthDegrees: number,
 ): EclipseContact | null => {
-  if (!event) {
+  if (!utc || !Number.isFinite(utc.getTime()) || sunAltitudeDegrees === null) {
     return null;
   }
-
-  const sun = Equator(Body.Sun, event.time, observer, true, true);
-  const horizontal = Horizon(
-    event.time,
-    observer,
-    sun.ra,
-    sun.dec,
-    "normal",
-  );
-
   return {
     id,
     label,
-    utc: event.time.date.toISOString(),
-    sunAltitudeDegrees: event.altitude,
-    sunAzimuthDegrees: horizontal.azimuth,
+    utc: utc.toISOString(),
+    sunAltitudeDegrees,
+    sunAzimuthDegrees,
   };
 };
 
@@ -254,11 +221,6 @@ const durationSeconds = (
   }
   return (Date.parse(end.utc) - Date.parse(start.utc)) / 1000;
 };
-
-const isSupportedEventResult = (
-  peakDate: Date,
-  definition: EclipseEventDefinition,
-): boolean => peakDate.toISOString().slice(0, 10) === definition.eventDateUtc;
 
 export const calculateLocalEclipse = (
   definition: EclipseEventDefinition,
@@ -273,41 +235,57 @@ export const calculateLocalEclipse = (
   }
 
   try {
-    const observer = new Observer(
-      location.latitude,
-      location.longitude,
-      elevationMeters,
-    );
-    const eclipse = SearchLocalSolarEclipse(
-      new Date(definition.searchStartUtc),
-      observer,
-    );
-
-    if (!isSupportedEventResult(eclipse.peak.time.date, definition)) {
+    const nasa = calculateNasaLocalEclipse(definition, location, elevationMeters);
+    if (!nasa) {
       return {
         status: "unavailable",
         reason: "This eclipse does not reach the selected location.",
       };
     }
 
-    const c1 = makeContact("c1", "Initial contact", eclipse.partial_begin, observer);
-    const c2 = makeContact("c2", "Start of totality", eclipse.total_begin, observer);
-    const maximum = makeContact("maximum", "Maximum eclipse", eclipse.peak, observer);
-    const c3 = makeContact("c3", "End of totality", eclipse.total_end, observer);
-    const c4 = makeContact("c4", "End of eclipse", eclipse.partial_end, observer);
+    const c1 = makeContact(
+      "c1",
+      "Initial contact",
+      nasa.contacts.c1,
+      nasa.sky.c1?.altitudeDegrees ?? null,
+      nasa.sky.c1?.azimuthDegrees ?? 0,
+    );
+    const c2 = makeContact(
+      "c2",
+      "Start of totality",
+      nasa.contacts.c2,
+      nasa.sky.c2?.altitudeDegrees ?? null,
+      nasa.sky.c2?.azimuthDegrees ?? 0,
+    );
+    const maximum = makeContact(
+      "maximum",
+      "Maximum eclipse",
+      nasa.contacts.maximum,
+      nasa.sky.maximum.altitudeDegrees,
+      nasa.sky.maximum.azimuthDegrees,
+    );
+    const c3 = makeContact(
+      "c3",
+      "End of totality",
+      nasa.contacts.c3,
+      nasa.sky.c3?.altitudeDegrees ?? null,
+      nasa.sky.c3?.azimuthDegrees ?? 0,
+    );
+    const c4 = makeContact(
+      "c4",
+      "End of eclipse",
+      nasa.contacts.c4,
+      nasa.sky.c4?.altitudeDegrees ?? null,
+      nasa.sky.c4?.azimuthDegrees ?? 0,
+    );
 
     return {
       status: "success",
       value: {
         eventId: definition.id,
-        kind:
-          eclipse.kind === EclipseKind.Total
-            ? "total"
-            : eclipse.kind === EclipseKind.Annular
-              ? "annular"
-              : "partial",
-        obscuration: eclipse.obscuration,
-        magnitude: calculateMagnitude(observer, eclipse.peak.time),
+        kind: nasa.kind,
+        obscuration: nasa.obscuration,
+        magnitude: nasa.magnitude,
         contacts: { c1, c2, maximum, c3, c4 },
         totalityDurationSeconds: durationSeconds(c2, c3),
         centerLineDistanceKm: distanceToPolylineKm(

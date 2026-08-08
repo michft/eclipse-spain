@@ -42,6 +42,8 @@ vi.mock("react-leaflet", async () => {
 });
 
 import { CircleMarker, MapContainer, Pane, Tooltip } from "react-leaflet";
+import { ECLIPSE_PATHS } from "../data/eclipsePaths";
+import { isPointInPolygon } from "../domain/geo";
 import { MapPanel } from "./MapPanel.web";
 
 describe("MapPanel web stacking and controls", () => {
@@ -100,6 +102,40 @@ describe("MapPanel web stacking and controls", () => {
     });
     expect(renderer?.root.findByType("select").props.value).toBe("region");
     expect(renderer?.root.findAllByType("button")).toHaveLength(0);
+  });
+
+  it("renders NASA inside and outside totality summaries", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const path = ECLIPSE_PATHS["spain-2026"];
+    const locations = [
+      { latitude: 43.37167, longitude: -6.18833 },
+      { latitude: 37.5, longitude: -5 },
+    ];
+
+    for (const location of locations) {
+      const inside = isPointInPolygon(location, path.totalityArea);
+      const summary = inside ? "100% totality" : "No totality at this location";
+      await act(async () => {
+        renderer = create(
+          createElement(MapPanel, {
+            bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+            contours: { obscurationContours: [], timeContours: [] },
+            location,
+            onLocationChange: vi.fn(),
+            path,
+            totalitySummary: summary,
+          }),
+        );
+      });
+
+      expect(
+        renderer?.root
+          .findAllByType(Tooltip)
+          .some((tooltip) => tooltip.props.children === summary),
+      ).toBe(true);
+      await act(async () => renderer?.unmount());
+      renderer = null;
+    }
   });
 
   it("restores a saved center and zoom when the map remounts", async () => {

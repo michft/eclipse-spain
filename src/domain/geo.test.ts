@@ -5,6 +5,7 @@ import {
   distanceKm,
   distanceToPolylineKm,
   distanceToSegmentKm,
+  isPointInPolygon,
   isValidGeoPoint,
 } from "./geo";
 
@@ -75,5 +76,16 @@ describe("geodesy", () => {
     expect(isValidGeoPoint({ latitude: 0, longitude: 180.0001 })).toBe(false);
     expect(isValidGeoPoint({ latitude: Number.NaN, longitude: 0 })).toBe(false);
     expect(isValidGeoPoint({ latitude: 0, longitude: Number.NaN })).toBe(false);
+  });
+
+  it("classifies points against a wrapped longitude polygon", () => {
+    const polygon = [
+      { latitude: 1, longitude: 179 },
+      { latitude: 1, longitude: -179 },
+      { latitude: -1, longitude: -179 },
+      { latitude: -1, longitude: 179 },
+    ];
+    expect(isPointInPolygon({ latitude: 0, longitude: 180 }, polygon)).toBe(true);
+    expect(isPointInPolygon({ latitude: 0, longitude: 0 }, polygon)).toBe(false);
   });
 });

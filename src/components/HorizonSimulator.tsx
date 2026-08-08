@@ -525,7 +525,11 @@ export const HorizonSimulator = ({
       <View style={styles.horizonHeader}>
         <View>
           <Text style={styles.time}>{formatUtc(simulatedMilliseconds)}</Text>
-          <Text style={styles.muted}>{(current.obscuration * 100).toFixed(2)}% obscured</Text>
+          <Text style={styles.muted}>
+            {current.obscuration >= 0.995 && kind !== "total"
+              ? "<100%"
+              : `${(current.obscuration * 100).toFixed(2)}%`} obscured
+          </Text>
         </View>
         <View style={styles.horizonHeaderActions}>
           <ActionButton

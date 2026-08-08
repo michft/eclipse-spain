@@ -119,6 +119,53 @@ export const distanceToPolylineKm = (
   return Number.isFinite(shortest) ? shortest : null;
 };
 
+const unwrapLongitude = (longitude: number, reference: number): number => {
+  let unwrapped = longitude;
+  while (unwrapped - reference > 180) unwrapped -= 360;
+  while (unwrapped - reference < -180) unwrapped += 360;
+  return unwrapped;
+};
+
+export const isPointInPolygon = (
+  point: GeoPoint,
+  polygon: readonly GeoPoint[],
+): boolean => {
+  if (polygon.length < 3) return false;
+  const vertices = polygon.reduce<{ latitude: number; longitude: number }[]>(
+    (unwrapped, vertex) => {
+      const previous = unwrapped.at(-1);
+      const longitude = unwrapLongitude(
+        vertex.longitude,
+        previous?.longitude ?? point.longitude,
+      );
+      unwrapped.push({ latitude: vertex.latitude, longitude });
+      return unwrapped;
+    },
+    [],
+  );
+  const pointLongitude = unwrapLongitude(
+    point.longitude,
+    vertices[0]?.longitude ?? point.longitude,
+  );
+  let inside = false;
+  for (let index = 0, previousIndex = vertices.length - 1; index < vertices.length; previousIndex = index++) {
+    const current = vertices[index];
+    const previous = vertices[previousIndex];
+    if (!current || !previous) continue;
+    const crossesLatitude =
+      (current.latitude > point.latitude) !==
+      (previous.latitude > point.latitude);
+    if (!crossesLatitude) continue;
+    const crossingLongitude =
+      ((previous.longitude - current.longitude) *
+        (point.latitude - current.latitude)) /
+        (previous.latitude - current.latitude) +
+      current.longitude;
+    if (pointLongitude < crossingLongitude) inside = !inside;
+  }
+  return inside;
+};
+
 export const isValidGeoPoint = (point: GeoPoint): boolean =>
   Number.isFinite(point.latitude) &&
   Number.isFinite(point.longitude) &&

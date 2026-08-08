@@ -5,15 +5,20 @@ each displayed result is produced and what should be used for comparison.
 
 ## Eclipse circumstances
 
-- Calculation library: [Astronomy Engine](https://github.com/cosinekitty/astronomy)
+- Eclipse calculation: NASA Besselian elements
+- Live sky library: [Astronomy Engine](https://github.com/cosinekitty/astronomy)
 - Comparison source: [NASA GSFC Five Millennium Canon of Solar Eclipses](https://eclipse.gsfc.nasa.gov/SEcat5/SEcatalog.html)
+- Element tables: [2026](https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2026Aug12Tbeselm.html), [2027](https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2027Aug02Tbeselm.html), and [2028](https://eclipse.gsfc.nasa.gov/SEbeselm/SEbeselm2001/SE2028Jul22Tbeselm.html), retrieved 8 August 2026.
 
-Astronomy Engine calculates topocentric local contacts, eclipse kind,
-obscuration, and solar position. The app derives magnitude and live obscuration
-from the apparent Sun/Moon angular radii and disc separation. UTC is shown to the
-second, but this does not claim the precision of a surveyed professional
-ephemeris. Observer coordinates, elevation model error, Earth rotation models,
-and library assumptions all affect results.
+NASA Besselian elements calculate local contacts, eclipse kind, magnitude,
+obscuration, and totality duration. Inputs use WGS84
+geodetic latitude/longitude and elevation above mean sea level: latitude is
+north-positive, longitude is east-positive, and no Web Mercator conversion is
+involved. Astronomy Engine supplies live topocentric Sun/Moon positions for the
+horizon animation and live disc geometry. UTC is shown to the second, but this
+does not claim the precision of a surveyed professional ephemeris.
+The NASA ΔT values in the element table are predictions; later NASA revisions
+can legitimately update them.
 
 Compare the selected point with the NASA event pages and other reputable local
 circumstance calculators before field use.

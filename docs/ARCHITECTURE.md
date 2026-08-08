@@ -30,7 +30,8 @@ Presentation and calculation code must not branch on a country or event ID.
 
 `src/domain/` contains deterministic TypeScript:
 
-- local eclipse circumstances, live disc obscuration, and topocentric Sun/Moon
+- NASA Besselian local eclipse circumstances and live topocentric Sun/Moon
+  positions;
   sky positions;
 - geodesic distance and destination calculations;
 - terrain-angle and azimuth-skyline calculation from elevation samples;
