@@ -29,7 +29,11 @@ import {
   CONTACT_IDS,
   type EclipseContact,
 } from "./src/domain/eclipse";
-import { isValidGeoPoint, type GeoPoint } from "./src/domain/geo";
+import {
+  isPointInPolygon,
+  isValidGeoPoint,
+  type GeoPoint,
+} from "./src/domain/geo";
 import {
   type RemoteData,
   useLocationAnalysis,
@@ -302,7 +306,14 @@ export default function App() {
     analysis.cloud.result.status === "success"
       ? analysis.cloud.result.value
       : null;
+  const nasaTotality = isPointInPolygon(location, selectedEvent.path.totalityArea);
+  const displayedObscuration = nasaTotality
+    ? "100%"
+    : (eclipse?.obscuration ?? 0) >= 0.995
+      ? "<100%"
+      : `${((eclipse?.obscuration ?? 0) * 100).toFixed(0)}%`;
   const totalitySummary =
+    nasaTotality &&
     eclipse?.totalityDurationSeconds !== null &&
     eclipse?.totalityDurationSeconds !== undefined &&
     eclipse.contacts.maximum
@@ -446,7 +457,7 @@ export default function App() {
                   <View style={styles.floatingMetrics}>
                     <View style={styles.floatingMetric}>
                       <Text style={styles.floatingMetricValue}>
-                        {(eclipse.obscuration * 100).toFixed(0)}%
+                        {displayedObscuration}
                       </Text>
                       <Text style={styles.floatingMetricLabel}>Obscured</Text>
                     </View>

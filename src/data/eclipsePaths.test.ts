@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ECLIPSE_CONTOURS } from "./eclipseContours.generated";
 import { ECLIPSE_PATHS } from "./eclipsePaths";
+import { isPointInPolygon } from "../domain/geo";
 
 describe("eclipse map overlays", () => {
   it.each([
@@ -41,5 +42,15 @@ describe("eclipse map overlays", () => {
     }
     expect(ECLIPSE_CONTOURS["spain-2026"].timeContours.map(({ label }) => label))
       .toContain("19:00Z");
+  });
+
+  it("uses NASA totality limits to classify the Spain band", () => {
+    const { totalityArea } = ECLIPSE_PATHS["spain-2026"];
+    expect(
+      isPointInPolygon({ latitude: 43.37167, longitude: -6.18833 }, totalityArea),
+    ).toBe(true);
+    expect(
+      isPointInPolygon({ latitude: 37.5, longitude: -5 }, totalityArea),
+    ).toBe(false);
   });
 });

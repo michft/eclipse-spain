@@ -46,6 +46,9 @@ vi.mock("react-native-maps", async () => {
 });
 
 import MapView, { Marker, Polygon, Polyline } from "react-native-maps";
+import { Text } from "react-native";
+import { ECLIPSE_PATHS } from "../data/eclipsePaths";
+import { isPointInPolygon } from "../domain/geo";
 import { MapPanel } from "./MapPanel";
 
 describe("MapPanel native parity", () => {
@@ -156,6 +159,40 @@ describe("MapPanel native parity", () => {
       ],
       expect.objectContaining({ animated: true }),
     );
+  });
+
+  it("renders NASA inside and outside totality summaries", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const path = ECLIPSE_PATHS["spain-2026"];
+    const locations = [
+      { latitude: 43.37167, longitude: -6.18833 },
+      { latitude: 37.5, longitude: -5 },
+    ];
+
+    for (const location of locations) {
+      const inside = isPointInPolygon(location, path.totalityArea);
+      const summary = inside ? "100% totality" : "No totality at this location";
+      await act(async () => {
+        renderer = create(
+          createElement(MapPanel, {
+            bounds: { east: 4, north: 46.5, south: 37, west: -12.5 },
+            contours: { obscurationContours: [], timeContours: [] },
+            location,
+            onLocationChange: vi.fn(),
+            path,
+            totalitySummary: summary,
+          }),
+        );
+      });
+
+      expect(
+        renderer?.root.findAllByType(Text).some(
+          (node) => node.props.children === summary,
+        ),
+      ).toBe(true);
+      await act(async () => renderer?.unmount());
+      renderer = null;
+    }
   });
 
   it("restores a saved camera without fitting the event bounds", async () => {
